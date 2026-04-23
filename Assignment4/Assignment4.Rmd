@@ -1,0 +1,931 @@
+---
+title: "Assignment4"
+author: "Jordi Florit Ensenyat, Josep Gabriel Fornes Reynes and Pau Girón Rodríguez"
+date: "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## **1. Introduction**
+
+This assignment explores the penguindata dataset, which contains
+measurements of penguins in the Palmer Archipelago. These data provide
+valuable insights into various physical attributes of penguins, as well
+as contextual information such as their sex and the year of study.
+
+### **1.1. Variable information**
+
+**1. bill length mm**: a number denoting bill length (millimeters)
+
+**2. bill depth mm**: a number denoting bill depth (millimeters)
+
+**3. ipper length mm**: an integer denoting ipper length (millimeters)
+
+**4. body mass g**: an integer denoting body mass (grams)
+
+**5. sex**: a factor denoting penguin sex (female, male)
+
+**6. year**: an integer denoting the study year (2007, 2008, or 2009)
+
+### **1.2. Research Question**
+
+**How can the penguins be grouped?**
+
+To address this question, this analysis will apply various clustering
+techniques, including both partitional and hierarchical methods. Each
+approach will be tested with different parameters to assess its
+effectiveness and to identify meaningful groupings within the dataset.
+
+Key points to be addressed include:
+
+-   **Preprocessing the data**: Ensuring the dataset is ready for
+    analysis by handling missing values, scaling variables, and
+    addressing categorical data.
+-   **Exploration of clustering models**: Applying and comparing
+    different clustering methods to identify the most meaningful
+    groupings.
+-   **Parameter optimization**: Testing multiple configurations for each
+    clustering method to determine the best-performing models.
+-   **Comparison of results**: Analyzing the similarities and
+    differences in the clusters produced by different methods.
+-   **Number of clusters**: Evaluating how the choice of the number of
+    clusters affects the results and their interpretability.
+
+## **2. Data Analisis**
+
+### **2.1. Importing Data**
+
+First of all, we have to import our data. Here, we are loading the
+necessary libraries and reading the CSV file containing the loan data.
+
+```{r}
+# Load the necessary libraries and read the CSV file containing the loan data
+library(patchwork)
+library(tidyr)
+library(GGally)
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+library(dendextend)
+library(dbscan)
+library(factoextra)
+library(mclust)
+library(cluster)
+library(igraph)
+library(ggcorrplot)
+library(viridis)
+
+data <- read.csv("penguindata.csv")
+```
+
+This is one simple example of the dataset:
+
+```{r}
+# Display the structure of the dataset
+head(data)
+```
+
+This is the format of the data:
+
+```{r}
+# Display the structure of the dataset
+str(data)
+```
+
+The summary data. The summary() function gives a statistical summary of
+each column, including minimum, maximum, mean, and quartiles.
+
+```{r}
+# Display a statistical summary of each column, including minimum, maximum, mean, and quartiles
+summary(data)
+```
+
+Some charts to visualize the numeric variables.
+
+```{r histograms-matrix, echo=TRUE}
+# Create histograms for each variable
+plot_bill_length <- ggplot(data, aes(x = bill_length_mm)) +
+  geom_histogram(binwidth = 1, fill = "blue", alpha = 0.7) +
+  labs(title = "Bill Length (mm)", x = "Bill Length", y = "Frequency") +
+  theme_minimal()
+
+plot_bill_depth <- ggplot(data, aes(x = bill_depth_mm)) +
+  geom_histogram(binwidth = 1, fill = "green", alpha = 0.7) +
+  labs(title = "Bill Depth (mm)", x = "Bill Depth", y = "Frequency") +
+  theme_minimal()
+
+plot_flipper_length <- ggplot(data, aes(x = flipper_length_mm)) +
+  geom_histogram(binwidth = 1, fill = "purple", alpha = 0.7) +
+  labs(title = "Flipper Length (mm)", x = "Flipper Length", y = "Frequency") +
+  theme_minimal()
+
+plot_body_mass <- ggplot(data, aes(x = body_mass_g)) +
+  geom_histogram(binwidth = 50, fill = "orange", alpha = 0.7) +
+  labs(title = "Body Mass (g)", x = "Body Mass", y = "Frequency") +
+  theme_minimal()
+
+# Arrange the plots in a grid
+# Combine all the plots in a grid
+grid.arrange(
+  plot_bill_length, plot_bill_depth, plot_flipper_length,
+  plot_body_mass,
+  ncol = 2
+)
+```
+
+This data-set contains some missing values and some categories. So now,
+let's clean up that data.
+
+### **2.2. Outliers**
+
+As we can see in the summary, there are no columns with values outside
+the normal. Let's visualize the box plot charts.
+
+```{r boxplot-separate, echo=TRUE}
+# Create boxplots for each variable
+plot_bill_length <- ggplot(data, aes(y = bill_length_mm)) +
+  geom_boxplot(fill = "blue", alpha = 0.7, outlier.color = "red", outlier.shape = 19) +
+  labs(title = "Bill Length (mm)", y = "Value") +
+  theme_minimal()
+
+plot_bill_depth <- ggplot(data, aes(y = bill_depth_mm)) +
+  geom_boxplot(fill = "green", alpha = 0.7, outlier.color = "red", outlier.shape = 19) +
+  labs(title = "Bill Depth (mm)", y = "Value") +
+  theme_minimal()
+
+plot_flipper_length <- ggplot(data, aes(y = flipper_length_mm)) +
+  geom_boxplot(fill = "purple", alpha = 0.7, outlier.color = "red", outlier.shape = 19) +
+  labs(title = "Flipper Length (mm)", y = "Value") +
+  theme_minimal()
+
+plot_body_mass <- ggplot(data, aes(y = body_mass_g)) +
+  geom_boxplot(fill = "orange", alpha = 0.7, outlier.color = "red", outlier.shape = 19) +
+  labs(title = "Body Mass (g)", y = "Value") +
+  theme_minimal()
+
+# Arrange the plots in a grid
+grid.arrange(
+  plot_bill_length, plot_bill_depth,
+  plot_flipper_length, plot_body_mass,
+  ncol = 2
+)
+```
+
+### **2.3. Missing Values**
+
+Let's process the missing values. These are the missing values
+
+```{r}
+# Identify missing values
+colSums(is.na(data))
+```
+
+After some investigation of the data, we have detected that the missing
+values of the numerical columns match in the same row. So we've
+considered deleting those two rows and then treating the gender column.
+
+So let's modify them.
+
+```{r}
+# Remove rows with missing values in numeric columns
+data <- data %>% filter(!is.na(bill_length_mm) & 
+                        !is.na(bill_depth_mm) & 
+                        !is.na(flipper_length_mm) & 
+                        !is.na(body_mass_g))
+
+colSums(is.na(data))
+```
+
+In index 4 we could see that the row had missing values, but now we can
+verify that that row has been deleted.
+
+```{r}
+head(data)
+```
+
+As we can see, we have removed the two rows with null values. Now let's
+deal with the remaining 9 values of the variable `sex`.
+
+```{r}
+data <- data %>% mutate(sex = ifelse(is.na(sex), 
+                                     as.character(names(which.max(table(sex)))),
+                                     as.character(sex)))
+
+summary(data)
+```
+
+The column does contain categorical data ("male", "female"), so we
+replace it with the mode (the most frequent value in the column).
+
+We can verify that they have been modified correctly
+
+```{r}
+# Identify missing values
+colSums(is.na(data))
+```
+
+### **2.4. Categorical Variables**
+
+Finally, we are going to convert the categorical variables to numerical
+ones. Firstly, we only see one categorical variable (`sex`), but since
+the `year` variable only has three years (2007, 2008 and 2009) we are
+going to treat it as a categorical variable.
+
+First, we convert the sex and year to factor and then we convert it to
+numeric.
+
+```{r}
+data$sex <- as.numeric(as.factor(data$sex))
+data$year <- as.numeric(as.factor(data$year))
+
+summary(data)
+str(data)
+```
+
+### **2.5. Relationships**
+
+Now we are going to identify highly correlated variables, because they
+can result in information and affect the quality of clustering.
+
+```{r}
+# Calculate correlations between numeric variables
+numeric_data <- data %>% select_if(is.numeric)
+corr_matrix <- cor(numeric_data, use = "complete.obs")
+
+# Plot the correlation heatmap
+ggcorrplot(corr_matrix, method = "square", type = "full", lab = TRUE, lab_size = 3, 
+           colors = c("#6D9EC1", "white", "#E46726"), title = "Correlation Heatmap")
+
+
+```
+
+1.  **Bill Length and Flipper Length**: There is a strong positive
+    correlation between bill length and flipper length. This suggests
+    that penguins with longer bills tend to have longer flippers.
+
+2.  **Body Mass and Flipper Length**: A strong positive correlation
+    exists between body mass and flipper length, indicating that heavier
+    penguins tend to have longer flippers.
+
+### **2.6. Unnecessary data**
+
+The first column that symbolizes the penguin index and it is not going
+to help us when we make the clusters, so we are going to remove this
+column.
+
+```{r}
+# Remove the first column (X)
+data <- data %>% select(-X)
+```
+
+Let's see the data after removing the column.
+
+```{r}
+# Display the dataframe after deletion
+summary(data)
+```
+
+Now we have the dataset cleaned.
+
+## **3. Clustering Models**
+
+### **3.1. Normalization and Transformation**
+
+Here we scale the numeric columns. Using scaling is often better because
+it ensures that all features have the same mean (0) and standard
+deviation (1), making them contribute equally to distance-based
+algorithms like k-means, regardless of their original units or range.
+This prevents features with larger ranges from dominating the model.
+
+```{r}
+# Scaling the data
+features <- data[, c("sex", "year", "bill_length_mm", "bill_depth_mm", "flipper_length_mm", "body_mass_g")]
+data_scaled <- scale(features)
+```
+
+### **3.2. Models**
+
+Once we have prepared the data, it is ready to be analized by
+clustering. We are going to use the following models:
+
+-   Hierarchical:
+    -   AGNES
+-   Partitional:
+    -   K-Means.
+    -   PAM
+    -   Gaussian Mixture Model
+-   Ordering-Based
+    -   OPTICS
+-   Density-Based
+    -   DBSCAN
+
+#### **Optimal Number of Clusters**
+
+First of all, we have to find the optimal number of clusters. To achieve
+this, we must do a pre-clustering. we are using the wss method.It
+measures the sum of the distances within each cluster. The optimal
+number of clusters is the one where the reduction in the sum of squares
+slows down.
+
+```{r}
+fviz_nbclust(
+  x = data_scaled, FUNcluster = cluster::pam, method = "wss", k.max = 15,
+  diss = dist(data_scaled, method = "euclidean")
+)
+```
+
+The optimal would be between 10 and 12 clusters, because beyond that,
+the trend starts to stabilize. As the results do not convince, we can
+try with data without been normalized:
+
+```{r}
+fviz_nbclust(
+  x = data, FUNcluster = cluster::pam, method = "wss", k.max = 15,
+  diss = dist(data, method = "euclidean")
+)
+```
+
+Here we can see how, beyond 5 clusters, the trend stabilizes. So we can
+conclude that 4 are the optimal number of clusters.
+
+#### **Linkage**
+
+Linkage is a method used in **hierarchical clustering** to determine the
+distance between clusters when grouping data. It defines how the
+distance between two sets of observations (clusters) is calculated,
+influencing the shape and structure of the resulting dendrogram. Common
+linkage methods include:
+
+There are five types of linkages:
+
+-   **Complete Linkage**: Considers the maximum distance between points
+    of different clusters.
+
+-   **Single Linkage**: Uses the minimum distance between points.
+
+-   **Average Linkage**: Calculates the average of the distances. Also
+    we implemented with Euclidean and Manhattan distances.
+
+-   **Centroid linkage clustering**: Find the centroid of each cluster
+    and calculate the distance between the centroids of two different
+    clusters.
+
+-   **Ward’s minimum variance method**: Instead of measuring the
+    distance directly, it analyzes the variance of clusters. It
+    minimizes the total within-cluster variance. At each step the pair
+    of clusters with minimum between-cluster distance are merged.
+
+We will see four linkages:
+
+With Euclidean distance.
+
+```{r}
+
+matriz_distancias <- dist(x = data, method = "euclidean")
+
+hc_euclidea_completo <- hclust(d = matriz_distancias, method = "complete")
+hc_euclidea_single <- hclust(d = matriz_distancias, method = "single")
+hc_euclidea_average <- hclust(d = matriz_distancias, method = "average")
+hc_euclidea_ward <- hclust(d = matriz_distancias, method = "ward.D2")
+
+plot(
+  x = hc_euclidea_completo, cex = 0.6, xlab = "", ylab = "", sub = "",
+  main = "Complete Linkage"
+)
+plot(
+  x = hc_euclidea_single, cex = 0.6, xlab = "", ylab = "", sub = "",
+  main = "Single Linkage"
+)
+plot(
+  x = hc_euclidea_average, cex = 0.6, xlab = "", ylab = "", sub = "",
+  main = "Average Linkage"
+)
+plot(
+  x = hc_euclidea_ward, cex = 0.6, xlab = "", ylab = "", sub = "",
+  main = "Ward's Linkage"
+)
+```
+
+With Manhattan distance.
+
+```{r}
+matriz_distancias <- dist(x = data, method = "manhattan")
+
+hc_manhattan_completo <- hclust(d = matriz_distancias, method = "complete")
+hc_manhattan_single <- hclust(d = matriz_distancias, method = "single")
+hc_manhattan_average <- hclust(d = matriz_distancias, method = "average")
+hc_manhattan_ward <- hclust(d = matriz_distancias, method = "ward.D2")
+
+
+plot(
+  x = hc_manhattan_completo, cex = 0.6, xlab = "", ylab = "", sub = "",
+  main = "Complete Linkage"
+)
+plot(
+  x = hc_manhattan_single, cex = 0.6, xlab = "", ylab = "", sub = "",
+  main = "Single Linkage"
+)
+plot(
+  x = hc_manhattan_average, cex = 0.6, xlab = "", ylab = "", sub = "",
+  main = "Average Linkage"
+)
+plot(
+  x = hc_manhattan_ward, cex = 0.6, xlab = "", ylab = "", sub = "",
+  main = "Ward's Linkage"
+)
+```
+
+**1. Method recommendation**
+
+-   For this dataset, Average Linkage appears to be the most
+    appropriate, as it generates balanced clusters and captures
+    relationships between variables without being overly influenced by
+    outliers.
+
+**2. Optimal number of clusters**
+
+-   The optimal number of clusters was identified to be between 3 and 4,
+    depending on the desired granularity. This is in line with the
+    results of the partitional analysis.
+
+**3. Preferred distance**
+
+-   Although Manhattan is preferable for partitional models, Euclidean
+    proved to be effective for hierarchical linkage, especially with
+    methods such as Complete and Average.
+
+**4. Interpretation of clusters**
+
+-   Each generated cluster can be interpreted as a subpopulation of
+    penguins with similar characteristics, based on beak lengths, body
+    weight, and other metrics.
+
+#### **3.2.1. Hierarchical**
+
+##### **AGNES**
+
+It merges the closest clusters iteratively, creating a dendrogram from
+individual points to a single cluster.
+
+```{r}
+agnes <- agnes(data_scaled)
+
+fviz_dend(agnes,
+  main = "AGNES Clustering Dendrogram",
+  show_labels = FALSE,
+  palette = "jama",
+  k = 4,
+  color_labels_by_k = TRUE,
+  ggtheme = theme_classic(),
+  rect = TRUE
+)
+```
+
+Dividing the data into 4 clusters allows for identifying more specific
+subgroups within the data. This can be useful if the analysis is looking
+for fine patterns or subcategories. We will still try with fewer
+clusters (2-3)
+
+```{r}
+
+fviz_dend(agnes,
+  main = "AGNES Clustering Dendrogram",
+  show_labels = FALSE,
+  palette = "jama",
+  k = 3,
+  color_labels_by_k = TRUE,
+  ggtheme = theme_classic(),
+  rect = TRUE
+)
+fviz_dend(agnes,
+  main = "AGNES Clustering Dendrogram",
+  show_labels = FALSE,
+  palette = "jama",
+  k = 2,
+  color_labels_by_k = TRUE,
+  ggtheme = theme_classic(),
+  rect = TRUE
+)
+
+```
+
+With **3 clusters**: This is not the best because it is using one cluster
+just for one data. So is better to include it in another cluster.
+
+With **2 clusters**: This configuration seems to be the most suitable,
+as it offers a clear and concise division. This can be useful if the
+goal is a simple but effective segmentation.
+
+```{r}
+cluster_labels <- cutree(as.hclust(agnes), k = 2)
+
+# Visualize the clusters
+fviz_cluster(
+  object = list(data = data_scaled, cluster = cluster_labels),
+  show.clust.cent = FALSE, # Agnes doesn't compute centroids
+  ellipse.type = "convex", star.plot = FALSE, repel = TRUE, geom = "point",
+  palette = "jama"
+) +
+  labs(title = "AGNES Clustering Dendrogram") +
+  theme_bw() +
+  theme(legend.position = "none")
+```
+
+When 2 clusters were selected, a clear and well-defined split was
+observed, suggesting that this configuration captures the main divisions
+in the data, so let's see graphically how these groups separate.
+
+The visualization in two-dimensional space (final graph) shows that the
+data are grouped into two well-separated regions, represented by
+triangles and points.
+
+The percentages on the axes (47.5% and 23.2%) indicate that these two
+dimensions explain a significant proportion of the variability in the
+data.
+
+#### **3.2.2. Partitional**
+
+##### **K-Means**
+
+First, we are going to compare this model with 3 and 4 clusters to see
+which is better.
+
+```{r}
+k1 <- 3
+kmeans <- kmeans(data_scaled, centers = k1, nstart = 2)
+data$cluster <- kmeans$cluster
+
+plot(data[, c(1:6)], col = kmeans$cluster)
+title("Pair Plot: Scatter Plots of Numeric Variables by Cluster")
+
+fviz_cluster(
+  object = kmeans, data = data, show.clust.cent = TRUE,
+  ellipse.type = "convex", star.plot = TRUE, repel = TRUE, geom = "point",
+  palette = "jama"
+) +
+  labs(title = "K-MEANS Clustering Dendrogram (3 clusters)") +
+  theme_bw() +
+  theme(legend.position = "none")
+```
+
+With 3 clusters seems good, but maybe with 4 we divide it better.
+
+```{r}
+k2 <- 4
+kmeans2 <- kmeans(data_scaled, centers = k2, nstart = 2)
+data$cluster <- kmeans2$cluster
+
+plot(data[, c(1:6)], col = kmeans2$cluster)
+title("Pair Plot: Scatter Plots of Numeric Variables by Cluster")
+
+fviz_cluster(
+  object = kmeans2, data = data, show.clust.cent = TRUE,
+  ellipse.type = "convex", star.plot = FALSE, repel = FALSE,
+  geom = "point",
+  palette = "jama"
+) +
+  labs(title = "K-MEANS Clustering Dendrogram (4 clusters)") +
+  theme_bw() +
+  theme(legend.position = "none")
+```
+
+With 4 clusters we can consider is better because the data is perfectly
+divided. To illustrate why 5, 6 or 7 clusters do not improve this
+division, we are going to watch it visually.
+
+```{r}
+kmeans_5 <- kmeans(data_scaled, centers = 5, nstart = 2)
+plot_5 <- fviz_cluster(
+  object = kmeans_5, data = data, show.clust.cent = TRUE,
+  ellipse.type = "convex", star.plot = TRUE, repel = TRUE,
+  geom = "point",
+  palette = "jama"
+) +
+  labs(title = "K-MEANS Clustering (5 Clusters)") +
+  theme_bw() +
+  theme(legend.position = "none")
+
+kmeans_6 <- kmeans(data_scaled, centers = 6, nstart = 2)
+plot_6 <- fviz_cluster(
+  object = kmeans_6, data = data, show.clust.cent = TRUE,
+  ellipse.type = "convex", star.plot = TRUE, repel = TRUE,
+  geom = "point",
+  palette = "jama"
+) +
+  labs(title = "K-MEANS Clustering (6 Clusters)") +
+  theme_bw() +
+  theme(legend.position = "none")
+
+kmeans_7 <- kmeans(data_scaled, centers = 7, nstart = 2)
+plot_7 <- fviz_cluster(
+  object = kmeans_7, data = data, show.clust.cent = TRUE,
+  ellipse.type = "convex", star.plot = TRUE, repel = TRUE,
+  geom = "point",
+  palette = "jama"
+) +
+  labs(title = "K-MEANS Clustering (7 Clusters)") +
+  theme_bw() +
+  theme(legend.position = "none")
+
+# Combine the graphs into a grid
+grid.arrange(plot_5, plot_6, plot_7, ncol = 2)
+```
+
+We can watch how adding more number of clusters does not improve the
+division of the data, because some clusters are mixed and can be joined.
+
+Finally, a dendrogram is shown to see perfectly the 4 clusters.
+
+```{r}
+hclust_result <- hclust(dist(data_scaled))
+plot(hclust_result, cex = 0.6, main = "Hierarchical Clustering Dendrogram", 
+     xlab = "Observations", ylab = "Distance", 
+     col.main = "darkblue", col.lab = "darkgreen", labels = FALSE)
+rect.hclust(hclust_result, k = 4, border = viridis(4, option = "jama"))
+
+```
+
+The presented dendrogram shows the result of a hierarchical clustering
+analysis using the distance metric applied to scaled data. Four main
+clusters are highlighted, as indicated by the rectangles around the
+branches.
+
+The hierarchical structure indicates that the 4 selected groups have a
+good separation. This suggests that there are significant differences
+between them. Each cluster contains observations that are more related
+to each other than to the data in other clusters.
+
+
+##### **PAM**
+
+This model groups data by selecting representative points (medoids) as
+the centers of clusters. It minimizes the sum of dissimilarities between
+points and their corresponding medoid. We are trying with 3 and 4
+clusters:
+
+```{r}
+pam <- pam(dist(data_scaled, method = "euclidean"), 3)
+clusplot(pam, main = "PAM Clustering with 3 Clusters")
+```
+
+The Silhouette Plot evaluates how well each point is assigned to its
+respective cluster. A large $s_i$ (close to 1) indicates that the point
+is well clustered, a small $s_i$(around 0) means the point lies between
+two clusters, and a negative $s_i$ suggests misclassification. While the
+horizontal bars are not visible in the provided plots, the numerical
+values and average silhouette widths still provide meaningful insights
+into the quality of clustering and allow us to effectively evaluate and
+compare the results of the different models.
+
+```{r}
+plot(pam, main = "Silhouettle with 3 Clusters and Euclidean")
+```
+
+In this first analysis (Euclidean distance, 3 clusters), the average
+silhouette width is 0.34, indicating a weak clustering. Cluster 3 has
+the highest silhouette width (0.37), suggesting it is relatively better
+clustered, while clusters 1 (0.30) and 2 (0.35) show significant
+overlap.
+
+```{r}
+pam <- pam(dist(data_scaled, method = "euclidean"), 4)
+clusplot(pam, main = "PAM Clustering with 4 Clusters")
+```
+
+```{r}
+plot(pam, main = "Silhouettle with 4 Clusters and Euclidean")
+```
+
+In this second analysis (Euclidean distance, 4 clusters), the silhouette
+width slightly improves to 0.37. Cluster 3 has the highest silhouette
+width (0.48), showing it is well-separated. However, other clusters,
+particularly cluster 1 (0.29), remain weakly defined and overlap with
+others.
+
+```{r}
+pam <- pam(dist(data_scaled, method = "manhattan"), 3)
+clusplot(pam, main = "PAM Clustering with 3 Clusters")
+```
+
+```{r}
+plot(pam, main = "Silhouettle with 3 Clusters and Manhattan")
+```
+
+In this third analysis (Manhattan distance, 3 clusters), the average
+silhouette width increases to 0.41, reflecting better clustering.
+Clusters 2 (0.43) and 3 (0.41) show better separation, while cluster 1
+(0.38) still experiences some overlap.
+
+```{r}
+pam <- pam(dist(data_scaled, method = "manhattan"), 4)
+clusplot(pam, main = "PAM Clustering with 4 Clusters")
+```
+
+```{r}
+plot(pam, main = "Silhouettle with 4 Clusters and Manhattan")
+```
+
+Finally, in this fourth analysis (**Manhattan distance, 4 clusters**), the
+silhouette width further improves to 0.44, indicating the best
+clustering among all configurations. Cluster 3 (0.54) and cluster 4
+(0.49) are well-separated, while cluster 1 (0.36) still shows some
+ambiguity.
+
+The 3-cluster PAM model offers a simpler segmentation, suitable for
+general insights and less detailed analysis. It is easier to interpret
+but struggles with overlapping clusters and less defined boundaries,
+particularly when using Euclidean distance. On the other hand, the
+4-cluster model provides a more refined representation of the data
+structure, with clearer separations and better-defined groupings,
+especially when using Manhattan distance. This configuration captures
+additional nuances within the data, making it more suitable for detailed
+and specific analyses.
+
+While the 3-cluster model is sufficient for broader overviews and
+simplicity, the 4-cluster model is recommended when a higher level of
+granularity is needed to uncover more subtle differences. The choice
+ultimately depends on the depth of analysis required.
+
+##### **Gaussian Mixture Model**
+
+This is a probabilistic model that assumes the data is generated from a
+mixture of several Gaussian distributions with unknown parameters. It
+estimates the parameters using the Expectation-Maximization (EM)
+algorithm to assign data points to different clusters based on their
+likelihood.
+
+```{r}
+gaussian <- Mclust(data_scaled)
+plot(gaussian, what = "classification", main = "GMM Clustering")
+```
+
+The ellipses encapsulating the data in each cluster reflect the
+probabilities calculated by the model. This indicates that the model not
+only assigns points to clusters, but also provides a measure of
+uncertainty. Unlike methods such as K-means or PAM, GMM uses a
+probabilistic approach, making it more suitable in scenarios where
+clusters may overlap or when the shape of the clusters is not
+necessarily spherical.
+
+In this case, three distinct clusters are identified, whereas in other
+instances, four clusters are found. Furthermore, in some situations,
+individual clusters could be combined into a single cluster.
+
+Variables such as bill_length_mm, bill_depth_mm, flipper_length_mm, and
+body_mass_g show notable differences between clusters, indicating that
+these features are important for classification.
+
+#### **3.2.3. Ordering-Based**
+
+##### **OPTICS**
+
+OPTICS is so similar to DBSCAN, but it handles varying density clusters
+better. It produces an ordering of points that reveals the structure of
+the data, allowing the identification of clusters at different density
+levels without needing a predefined distance threshold.
+
+```{r}
+optics <- optics(data_scaled, minPts = 4)
+plot(optics, main = "OPTICS Clustering Algorithm")
+```
+
+With this algorithm, the clusters aren't easily distinguishable due to
+the diverse and widely spread valleys. However, it is apparent that
+there are four prominent peaks, which suggest the existence of 4
+distinct clusters within the data.
+
+#### **3.2.4. Density-Based**
+
+##### **DBSCAN**
+
+This is a clustering algorithm that groups together points that are
+closely packed, marking as outliers those that lie alone in low-density
+regions.
+
+The results depend on the parameters eps (neighborhood radius) and
+minPts (minimum points to form a cluster). A more thorough evaluation
+could explore how these parameters affect the number of clusters and the
+detection of outliers.
+
+```{r}
+dbscan <- dbscan(data_scaled,
+  eps = 1.5,
+  MinPts = 4
+)
+fviz_cluster(
+  object = dbscan, data = data_scaled, stand = FALSE,
+  geom = "point", ellipse = TRUE, show.clust.cent = TRUE,
+  pallete = "jco",
+  main = "DBSCAN Clustering Algorithm"
+) +
+  theme_bw() +
+  theme(legend.position = "bottom")
+```
+
+This model has divided automatically the data into 4 clusters, and has
+identified 2 outliers, which are the black points. This shows that
+DBSCAN is effective in detecting noise or outliers in the data.
+
+The clusters are compact and well separated, indicating that densities
+within each group are significantly higher than in the regions between
+them. The ellipses drawn around the clusters reinforce this observation.
+
+## **4. Conclusions**
+
+Different clustering techniques were applied in this analysis,
+classified according to their methodological approaches. Each model
+offered a unique perspective on the structure of the data. The
+conclusions are presented below, organized by category:
+
+**1. Hierarchical: AGNES**
+
+\- The AGNES model allowed the identification of 4 well-defined
+clusters, showing a clear and useful hierarchical structure to
+understand the relationships between observations at different
+clustering levels.
+
+\- This method is particularly valuable when a hierarchical
+representation is sought and the number of clusters is not previously
+known.
+
+**2. Partitional**
+
+**2.1 K-Means:**
+
+\- Provided compact and separate clusters, being especially
+computationally efficient. The configuration with 4 clusters showed the
+best segmentation in this analysis.
+
+\- However, its dependence on centroids makes it less robust against
+outliers or non-spherical distributions.
+
+**2.2 PAM (Partitioning AroundMedoids):**
+
+\- Similar to K-Means in terms of overall cluster quality but more
+robust against outliers, as it uses medoids instead of centroids to
+define clusters. This makes it better suited for datasets with irregular
+distributions or noise.
+
+\- This method also identified 4 clusters as the optimal configuration,
+offering a stable and reliable option for accurate segmentations,
+especially in datasets with complex characteristics.
+
+**2.3 Gaussian Mixture Model (GMM):**
+
+\- This probabilistic model identified 3 main clusters, with flexibility
+to model non-spherical clusters. However, it does not detect outliers
+explicitly and depends on correct parameter estimation.
+
+**3. Ordering-Based: OPTICS**
+
+OPTICS is especially effective on data with clusters of different
+densities. The analysis suggested the existence of 4 clusters, with a
+more complex structure than that identified by partitional models.
+
+\- Advantages:
+
+-   It does not require a fixed number of clusters a priori and is
+    suitable for non-homogeneous data.
+
+\- Limitations:
+
+-   Its visualization requires careful interpretation to determine the
+    clusters.
+
+**4. Density-Based: DBSCAN**
+
+DBSCAN identified 4 clusters and detected 2 outliers, highlighting its
+ability to handle noise and group data with irregular shapes.
+
+\- Advantages:
+
+-   It does not depend on the shape or size of the clusters and is ideal
+    for data sets with significant noise.
+
+-Limitations:
+
+-   The results depend strongly on the parameters eps and minPts.
+
+General Conclusion
+
+Each technique provides value depending on the characteristics of the
+data and the objectives of the analysis. For this particular dataset:
+
+-   **DBSCAN and OPTICS** stand out in their ability to handle variable
+    densities and noise, being ideal for complex scenarios.
+-   **PAM and AGNES** offer consistent results with 4 clusters, being
+    more suitable for homogeneous data and exploratory analysis.
+-   **K-Means and GMM** are fast and useful options in contexts where
+    simplicity or basic segmentation is sought.
+
+The choice of model will depend on the final purpose of the analysis,
+but the models that consistently identified 4 clusters appear to be the
+most representative of the dataset structure. It is recommended to
+complement this analysis with validation metrics to confirm the quality
+of the clusters obtained.

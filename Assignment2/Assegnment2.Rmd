@@ -1,0 +1,183 @@
+---
+title: "Assignment 2"
+author: "Josep Gabriel Fornes Reynes"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# REGRESSION MODELS
+
+## The Problem
+
+To complete this assignment create a .Rmd file with your answers. Once completed, generate an .html document and upload the .html document at Aula Digital in the space provided. Make sure your name is visible at the top of the document and show your R code.
+
+Consider the Wage dataset available in the ISLR library and that was introduced in CS4.LinearModels.
+The focus in this assignment is the construction of regression models, where “wage” (or “logwage”) will be the dependent variable.
+Consider the following research question: Utilize the data provided for predicting wage for male workers
+from the Atlantic region of the United States.
+
+Considering the different regression models explained in class: simple linear, multilinear, polynomial, logistic, non-linear (data transformation), ..., you may also consider interaction between variables, construct three models to predict wage (logwage) and evaluate the resulting models. If you use R functions not explained in class, you must document its characteristics and explain what results are provided in the output
+
+## The Data
+
+The Wage data set  examines a number of factors that relate to wages for a group of 3000 male workers from the Atlantic region of the United States. Data was manually assembled by Steve Miller, of Inquidia Consulting (formerly Open BI). From the March 2011 Supplement to Current Population Survey data. The following 11 variables are considered:
+
+* year: Year that wage information was recorded
+
+* age: Age of worker
+
+* maritl: A factor with levels 1. Never Married 2. Married 3. Widowed 4. Divorced and 5. Separated indicating marital status
+
+* race: A factor with levels 1. White 2. Black 3. Asian and 4. Other indicating race
+
+* education: A factor with levels 1. < HS Grad 2. HS Grad 3. Some College 4. College Grad and 5. Advanced Degree indicating education level
+
+* region: Region of the country (mid-atlantic only)
+
+* jobclass: A factor with levels 1. Industrial and 2. Information indicating type of job
+
+* health: A factor with levels 1. <=Good and 2. >=Very Good indicating health level of worker
+
+* health_ins: A factor with levels 1. Yes and 2. No indicating whether worker has health insurance
+
+* logwage: Log of workers wage
+
+* wage: Workers raw wage
+
+
+
+## Exploratory Data Analysis
+
+The first thing we have to do is analyze the dataset data. So let's visualize it:
+
+```{r}
+library(ISLR)
+WD <- Wage
+summary(WD)
+```
+
+As can be seen in the previous summary, there are several variables that will be useful or not to carry out the regression models. So we must determine which ones we will use or not:
+
+- Year: this variable will be useful to distinguish the year in which the wage was recorde, because salaries can vary depending on the year. 
+- Age: is related to work experience, which generally influences salary.
+- Maritl: it can be relevant to salary for several reasons, such as family responsibilities, effects on job mobility, etc.
+- Race: racial wage inequalities are a widely studied topic.
+- Education: is related to work experience, which generally influences salary. It is one of the most influential factors in salary. If you have more education, it allows you to access jobs and higher salaries.
+- Region: in this dataset, this variable is always the same, that is, all the workers are in the same region and it is not useful for us to create the models.
+- Jobclass: clear salary differences between different job sectors.
+- Health: it is a crucial factor in an individual's ability to work and productivity.
+- health_ins: having or not having health insurance can be an indirect reflection of salary and type of work.
+
+In conclusion, all variables can be used to make regression models except the region.
+
+Now we are going to see the comparison between all the variables by pair.
+
+```{r}
+pairs(WD)
+```
+
+## Simple linear model
+
+Carrying out a previous study, we have drawn the conclusion that the variables have little linear relationship with wage or logwage. We have reach to this conclusion by looking at the R-squared of logwage/wage with all the other variables individually. The best R-squared is using wage as a dependent variable and education as a independent.
+
+Here we can see a comparative graph between these two variables.
+
+```{r volume and height, echo=FALSE}
+plot(WD$wage~WD$education,main="Wage vs. Education",
+     xlab="Education",ylab="Wage")
+```
+
+
+```{r}
+wage.lm<-lm(WD$wage ~ WD$education)
+summary(wage.lm)
+```
+
+So as we can see, the R-squared has a value of 0.2348. This value refers to the linear relationship between salary and education, which means that approximately 23% of the variation in the Y values is explained by variable X. 
+
+In conclusión, we have to try to improve the relationship between the two variables to be able to make the prediction. So let's try to use multilieal regression.
+
+
+## Multilineal model
+
+In order to improve R-squared, we are going to look at how this variable behaves using linear regression.
+
+Before generating the multiple linear regression model, we must study which variables are useful. As we have explained at the beginning of this study, all the variables in this dataset can be useful, since all of them can be related to salaries, except the region, which, as we have mentioned, only data is found with one region. In addition, several samples have been carried out and we have been able to conclude that using all the variables except the region the best result is obtained.
+
+Let's look at the R-squared with all the remaining variables:
+
+#### With wage
+
+```{r}
+wage.mlm<-lm(wage ~ year + age + education + race + maritl + health + health_ins + jobclass, data = Wage)
+summary(wage.mlm)
+```
+
+#### With logwage
+
+```{r}
+wage.mlm2<-lm(logwage ~ year + age + education + race + maritl + health + health_ins + jobclass, data = Wage)
+summary(wage.mlm2)
+```
+
+As we can see, in the multilinear regression model, using the wage, the linear relationship is 0.3396 and using the logwage it is 0.3752. So we can reach to the conclusion that logwage has a better linear relationship with the other variables than the wage.
+
+Now, we are going to improve this model using age^2. The main reason is to capture a non-linear relationship between that variable and the dependent variable (in this case, logwage).
+In many cases, the relationship between age and salary is not linear. For example, salaries may increase fastly during early career stages (young age), stabilize in middle age, and then decline or grow more slowly as a person approaches retirement.
+The squared age term allows us to model this curvature or change in the slope of the relationship:
+
+- If the coefficient of age^2 is negative, it indicates a curve in the shape of an "inverted parabola", where the salary increases at first but then levels off or even decreases as age advances.
+- If the coefficient is positive, the salary would continue to grow, although more and more rapidly as age increases (this is less common in the case of salary).
+
+By including both age and age^2, we are allowing the model to capture more complex patterns than a simple linear relationship between age and salary.
+
+```{r}
+wage.mlm3<-lm(logwage ~ year + poly(age, 2) + education + race + maritl + health + health_ins + jobclass, data = Wage)
+summary(wage.mlm3)
+```
+
+Relative to the last model, the R-squared value has improved from 0.3752 to 0.39. The model is now explaining 39 percent of the variation in the workers wage.
+
+Let's perform another optimization on the multilinear regression model. This modification involves using the logarithm of the age, that captures the nonlinear relationship in which the effect of age is largest at early ages and decreases as the person ages, which may be realistic for wages.
+
+```{r}
+wage.mlm3<-lm(logwage ~ year + age + log(age) + education + race + maritl + health + health_ins + jobclass, data = Wage)
+summary(wage.mlm3)
+```
+
+We now see a slight increase in R-squared compared to age^2. This increase is very small, so we could say that the age^2 and the log(age) increase at the same time as the initial multilinear regression model.
+
+## Non-lineal models
+
+### Polynomial model
+
+This model does not improve the multilinear regression model at any time. This is because the polynomial model depends on there being a significant non-linear relationship between the independent and dependent variables. As we have seen before, some variables have some linear relationships with wage and logwage. Therefore, we cannot affirm that the polynomial model is the best to make a prediction in this dataset.
+
+```{r}
+wage.pm<-lm(WD$wage ~ poly(education, 3), data = Wage)
+summary(wage.pm)
+```
+
+Same R-squared as the simple linear model.
+
+### Logistic model
+
+The logistic regression model is not appropriate to apply to the Wage data set as configured, as this type of regression is used to predict categorical or binary variables (for example, whether an outcome is "yes/no", "success/ failure", "buy/don't buy", etc.). However, in Wage's case, the variable of interest is salary, which is a continuous variable.
+
+
+## Conclusion
+
+In this analysis, we have explored several regression models using the Wage data set from the ISLR package, with the aim of predicting the salary of workers based on different characteristics.
+
+- **Simple Linear Regression**: Of all the variables, we find that education is the strongest predictor, providing the highest R-squared value, indicating that education is the single factor that best explains variability in wage.
+- **Multiple Linear Regression**: we incorporate multiple independent variables simultaneously, including age, education, job class, and others. This model provided a considerably better fit than the simple models, capturing more of the variability in pay by taking into account the interaction between several characteristics. The multilinear model was shown to be the most effective for this data set, although the R-squared is still low. To improve the accuracy of the model, we introduced non-linear terms such as age² and log(age). We observed that they provided a slight increase in R-squared, suggesting that the relationship between age and salary is not completely linear. This reflects a significant improvement over simple linear regression and underscores the importance of considering transformations when nonlinear relationships exist in the data.
+- **Polynomial Regression**: Finally, we try polynomial regression, which allows capturing non-linear relationships by adding polynomial terms such as education^3. However, we observed that the R-squared of the polynomial model was very similar to that of the simple linear regression, and showed no improvement over the multiple linear model. This suggests that although the polynomial model can fit the non-linear relationship between education and wage, it does not provide significant additional predictive value compared to simpler and more efficient models.
+
+In summary, the analysis shows that the multiple linear regression model is the most appropriate for this data set. While education is the strongest variable when analyzed individually, combining it with other variables such as age and its transformations captures more of the complexity inherent in the data. In contrast, approaches such as polynomial regression did not provide significant improvements and logistic regression is not appropriate for this analysis. Therefore, the multiple linear model stands out as the most effective tool for predicting salary in this context.
+
+
+

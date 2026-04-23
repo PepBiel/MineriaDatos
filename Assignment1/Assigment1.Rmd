@@ -1,0 +1,163 @@
+---
+title: "Assigment1"
+author: "Josep Gabriel Fornés Reynés"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+First of all, we have to view the DataSet and study it.
+```{r}
+head(ChickWeight, 50)
+```
+As we can see in the Data Set, we find four columns, which represent the weight of the chicken (weight), the days the chicken has been alive (time), the chicken identifier (chick) and the diet that said chicken eats (diet).
+
+The conclusions we can make is that depending on the diet, the chickens will have different weights with the same days of life.Furthermore, we must have into consideration that the chickens will have different life spans, since it may happen that some of them die before the others.
+
+### a) Visualize the data using three different types of charts. These representations offer insights of the data, interpret the resulting graphs.
+The R Graph Gallery (https://r-graph-gallery.com/) offers a large collection of R chart examples from bar charts to animated ones together with reproducible code and a detailed explanation of its functionality.
+A BIT OF ADVICE: A good visualization illustrates data so that viewers can extract meaning fast. One of the most common mistakes in data visualization is including too much information. Keep it simple!
+
+#### First chart:
+
+The fist chart that we are going to use is **Multi groups line chart with ggplot2** because the dataset includes weight observations over time. This graph is perfect for representing the evolution of each chick's weight, so we have to group the lines by the chick identifier (Chick).
+
+Link to the chart information:
+[Line chart with several groups](https://r-graph-gallery.com/line-chart-several-groups-ggplot2.html)
+
+```{r, fig.align='center'}
+library(ggplot2)
+
+ggplot(ChickWeight, aes(x = Time, y = weight, group = Chick, color = Diet)) +
+  geom_line() +
+  labs(title = "Evolution of chick weight by diet",
+       x = "Time (days)",
+       y = "Weight (g)")+
+  theme_minimal()
+```
+
+This chart allows us to see the evolution of the weight of the chicks over time, with colored lines depending on the type of diet.
+
+Now let's analyze what we see in the graph. We can see how the chickens on diet 3 are the ones that gain the most weight until death, as well as those on diet 1 are the ones that gain the least weight and more early deaths it contains. Furthermore, those on diet 2 are the chickens that have the most variations in weight, because some chickens gain a lot of weight and some not so much. Finally, for the chickens on diet 4 we can see how the weights are very similar and high among all the chickens, so we can conclude that it is the diet with the most consistency and equality.
+
+
+
+#### Second chart:
+
+The second chart that we are going to use is **Boxplot**. Boxplot is probably the most commonly used chart type to compare distribution of several groups.
+
+This graph is useful to compare the weight distribution of chicks according to the type of diet. We can see the differences between the medians and dispersion of the data for each diet.
+
+![](https://r-graph-gallery.com/img/other/boxplot_explanation.png)
+
+Link to the chart information:
+[Boxplot charts](https://r-graph-gallery.com/boxplot.html)
+
+```{r, fig.align='center'}
+library(ggplot2)
+
+ggplot(ChickWeight, aes(x = Diet, y = weight, fill = Diet)) +
+  geom_boxplot() +
+  labs(title = "Weight distribution according to diet",
+       x = "Diet",
+       y = "Weight (g)") +
+  theme_minimal()
+
+```
+
+In this graph we can clearly see the difference between diets. In diet 1 we can say that the chickens do not gain much weight, except for some variations.  Diet 3 is the one that contains the most variations, because it contains the largest block. Finally, we can see that diet 4 is the one with the most average weight. This is due to the small difference in weight between chickens. 
+
+#### Third chart:
+
+The third that we are going to use is **Stacked bar chart**. If we want to see how the chicks are distributed in different weight ranges for each diet, a stacked bar chart can be very useful. This graph allows you to visualize the frequencies of different categories, such as diets, in various weight ranges.
+
+Link to the chart information:
+[Boxplot charts](https://r-graph-gallery.com/48-grouped-barplot-with-ggplot2.html)
+
+```{r, fig.align='center'}
+ChickWeight$Weight_Category <- cut(ChickWeight$weight, breaks = 5)
+
+ggplot(ChickWeight, aes(x = Diet, fill = Weight_Category)) +
+  geom_bar(position = "fill") +
+  labs(title = "Proportion of chicks in weight categories by diet",
+       x = "Diet",
+       y = "Proportion") +
+  theme_minimal()
+
+```
+
+In this last graph we will be able to confirm what we have said previously. Diet 1 is the one in which the chickens gain the least weight, diet 2 contains many chickens with very high and very low weights, diet 3 is the one in which the chickens gain the most weight in all ranges and diet 4 is the one that makes the difference. of all the chickens is the one that varies the least.
+
+### b) Without using the R built-in statistical functions, calculate the mean and variance of variables weight and Time.
+
+#### Mean formula
+
+$$
+\bar{X} = \frac{1}{n} \sum_{i=1}^{n} X_i
+$$
+
+#### Variance formula
+
+$$
+\text{Var}(X) = \frac{1}{n-1} \sum_{i=1}^{n} (X_i - \bar{X})^2
+$$
+
+
+
+#### Results
+
+```{r}
+# Charge the Dataset
+weight <- ChickWeight$weight
+time <- ChickWeight$Time
+
+# Mean of weight and time
+weight_mean <- sum(weight) / length(weight)
+time_mean <- sum(time) / length(time)
+
+# Variance of weight and time
+weight_var <- sum((weight - weight_mean)^2) / (length(weight) - 1)
+time_var <- sum((time - time_mean)^2) / (length(time) - 1)
+
+# Results
+cat("Weight mean:", weight_mean, "\n")
+cat("Weight variance:", weight_var, "\n")
+cat("Time mean:", time_mean, "\n")
+cat("Time variance:", time_var, "\n")
+
+```
+
+### c) Without using the R built-in statistical functions, calculate the covariance between weight and Time. Interpret the result.
+
+The covariance between two variables X (in this case, Time) and Y (in this case, weight) measures how they vary together.
+
+#### Covariance formula
+
+$$
+\text{Cov}(X, Y) = \frac{1}{n-1} \sum_{i=1}^{n} (X_i - \bar{X})(Y_i - \bar{Y})
+$$
+
+
+```{r}
+weight_diff <- weight - weight_mean
+time_diff <- time - time_mean
+
+# Covariance calc
+covariance <- sum(weight_diff * time_diff) / (length(weight) - 1)
+
+# Result
+cat("Covariance between weight and time:", covariance, "\n")
+```
+
+### CONCLUTION
+
+Making the mean, variance and covariance of weight and time as we have done is not correct, because each chicken has different weights depending on time, and what we do is take all the weights of each day of life of all the chickens. The correct thing would be to take the last day of life of each chicken and calculate the mean, variance and covariance based on that data.
+
+
+
+
+
+

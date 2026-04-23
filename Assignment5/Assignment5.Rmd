@@ -1,0 +1,438 @@
+---
+title: "Assignment5"
+author: "Jordi Florit Ensenyat, Josep Gabriel Fornes Reynes and Pau Girón Rodríguez"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## **1. Introduction**
+
+In this assignment, we will analyze association rules using the BreadBasket dataset, which contains information on transactions made in a bakery. This analysis is a key aspect of data mining, particularly in identifying frequent patterns within large volumes of transactional data.
+
+The main objective of this task is to apply data mining techniques to discover frequent itemsets and generate association rules that reveal meaningful relationships between purchased products. Additionally, we will explore methods to identify redundant rules and evaluate techniques for effectively visualizing these rules.
+
+## **2. Importing data**
+
+We have to sets up the environment for association rule mining. So we use this function that read transactional data from the BreadBasket.csv file and convert it into a format suitable for processing with `arules` functions.
+
+```{r}
+library(arules)
+transactionBD <- read.transactions("BreadBasket.csv", format = "single", sep = ",", cols = c("Transaction", "Item"), header = TRUE)
+```
+
+## **3. Data Analisis**
+
+```{r}
+summary(transactionBD)
+```
+
+To view the transactions, use the “inspect()” function instead, because the "head()" function does not display the transaction items.
+
+```{r}
+inspect(transactionBD[1:4,])  # too many transactions, only look at the first 4
+```
+
+Since association mining deals with transactions, the data has to be converted to one of class transactions, made available in R through the “arules” package. This is a necessary step because the “apriori()” function only accepts transactions data of class transactions.
+
+```{r}
+class(transactionBD)
+```
+
+```{r}
+image(transactionBD[1:5]) # a visualization of the sparse matrix for the first five transactions
+```
+
+```{r}
+image(sample(transactionBD, 100))
+```
+
+```{r}
+itemFrequencyPlot(transactionBD, support = 0.1) ## minimum support 0.1
+```
+
+```{r}
+itemFrequencyPlot(transactionBD, topN = 20, type="absolute", main="Top 20 Item Frequency")   ## plot of top 20 most frequent items
+```
+
+A rule is a notation that represents which item/s is frequently bought with what item/s. It has an LHS and an RHS part and can be represented as: $A \rightarrow B$. This means, the item/s in $B$ were frequently purchased along with items of $A$.
+
+The "apriori()" function generates the most relevant set of rules from a given transaction data. It also shows the support, confidence and lift of those rules. These three measure can be used to decide the relative strength of the rules. So what do these terms mean?
+
+-   "support" is how many transactions support the condition. $$s(A \rightarrow B) = \frac{\sigma(A,B)}{|T|} = P(A \cup B)$$
+
+-   "confidence" is how confident the condition is. $$c(A \rightarrow B) = \frac{s(A \rightarrow B)}{s(A)} = \frac{P(A \cup B)}{P(A)}$$
+
+-   "lift" is how often the condition actually happened compared to the estimated chance for that to happen (expected value). $$lift(A \rightarrow B) = \frac{c(A \rightarrow B)}{s(B)} = \frac{P(A \cup B)}{P(A)\cdot P(B)}$$ Lift is the factor by which, the co-occurrence of A and B exceeds the expected probability of A and B co-occurring, had they been independent. So, higher the lift, higher the chance of A and B occurring together.
+
+```{r}
+frequentItems <- eclat(transactionBD, parameter = list(support = 0.05)) # calculates support for frequent items
+```
+
+```{r}
+inspect(frequentItems)
+```
+
+```{r}
+frequentItems2 <- eclat(transactionBD, parameter = list(support = 0.01)) # calculates support for frequent items
+```
+
+```{r}
+inspect(frequentItems2)
+```
+
+```{r}
+summary(frequentItems2)
+```
+
+## 4. Associtation Rules: Apriori
+
+The following code performs an association rule analysis using the Apriori algorithm on a transactional dataset (`transactionBD`). The analysis includes various settings for the algorithm parameters in order to identify frequent patterns in the data.
+
+### Step 1: Initial Rule Generation
+
+In this step, an initial set of association rules is generated using the default parameters of the apriori algorithm. The rules object contains the generated rules. When executed, we can see a basic summary of the rules created. So we can see that the default parameters are too restrictive for this dataset and need to be adjusted.
+
+```{r}
+rules <- apriori(transactionBD)
+summary(rules)
+```
+
+The summary includes general statistics such as support, confidence, and average rule length. We can see that no rules are generated because there are no items that meet the minimum support of 10% and the minimum confidence of 80%. This can happen if the data is distributed in such a way that few items have a high frequency.
+
+### Step 2: Testing the algorithm
+
+Here, parameters are adjusted to generate more meaningful rules:
+
+- supp = 0.01: A minimum support of 1% is set, indicating that rules must be present in at least 1% of transactions.
+- conf = 0.5: A minimum confidence of 50% is set, implying that rules must have at least a 50% probability of being fulfilled.
+- minlen = 2: A minimum length of 2 is set for rules, ensuring that they involve at least two elements.
+
+```{r}
+rules <- apriori(transactionBD, parameter = list(supp = 0.01, conf = 0.5, minlen=2))
+summary(rules)
+```
+
+12 rules are generated that meet the tuned parameters.
+
+The summary shows:
+
+- The distribution of rule lengths: all rules have a length of 2.
+- The quality measures (support, confidence, lift) for each rule.
+
+```{r}
+inspect(rules)
+```
+
+This step allows to inspect the generated rules in detail, displaying information such as the support, confidence, and lift of each rule.
+
+### Step 3: Refining the parameters
+
+To explore how different values of support, confidence, and minimum length affect the generated rules, a function is defined that iterates over various combinations of these parameters:
+
+**Input parameters**:
+
+- df: The transactional dataset.
+- supp_values: A list of support values.
+- conf_values: A list of confidence values.
+- minlen_values: A list of minimum length values.
+
+**Outputs**:
+
+A data.frame is returned that contains, for each combination of parameters:
+
+  - The number of redundant rules (Redundant_Rules).
+  - The number of non-redundant rules (Non_Redundant_Rules).
+
+The lists of support, confidence, and minimum length values to be used in the loop are defined. The `run_apriori_with_loop` function is run with these combinations, allowing to evaluate how the parameters affect the performance and results of the algorithm.
+
+Parameters evaluated:
+
+- Support values: 0.005, 0.01, 0.02
+
+- Confidence values: 0.4, 0.5, 0.6, 0.7
+
+- Minlen values: 1, 2, 3
+
+
+```{r}
+run_apriori_with_loop <- function(df, supp_values, conf_values, minlen_values) {
+  result_df <- data.frame()
+
+  for (supp_val in supp_values) {
+    for (conf_val in conf_values) {
+      for (minlen_val in minlen_values) {
+        rules <- apriori(
+          df,
+          parameter = list(
+            supp = supp_val,
+            conf = conf_val,
+            minlen = minlen_val
+          )
+        )
+        red_rules <- rules[is.redundant(rules)]
+        not_red_rules <- rules[!is.redundant(rules)]
+        rules_conf <- sort(not_red_rules, by = "lift", decreasing = TRUE)
+        result_df <- rbind(
+          result_df,
+          data.frame(
+            Support = supp_val,
+            Confidence = conf_val,
+            MinLength = minlen_val,
+            Redundant_Rules = length(red_rules),
+            Non_Redundant_Rules = length(not_red_rules)
+          )
+        )
+      }
+    }
+  }
+
+  return(result_df)
+}
+
+
+supp_values <- c(0.005, 0.01, 0.02)
+conf_values <- c(0.4, 0.5, 0.6, 0.7)
+minlen_values <- c(1, 2, 3)
+
+run_apriori_with_loop(
+  transactionBD,
+  supp_values,
+  conf_values,
+  minlen_values
+)
+```
+
+### Step 4. Redundant Rules Treatment
+
+To show how to remove the redundant rules, another configuration is going to be used.
+
+Once the parameters are selected (support = 0.005, confidence = 0.4, minlen = 2), 28 rules are generated. These rules are divided into:
+
+```{r}
+
+rules <- apriori(
+          transactionBD,
+          parameter = list(
+            supp = 0.005,
+            conf = 0.4,
+            minlen = 2
+          )
+        )
+red_rules <- rules[is.redundant(rules)]
+inspect(red_rules)
+```
+
+Redundant rules (6 rules): Rules that can be derived from other rules with greater generality.
+
+Also for see non-redundant:
+
+```{r}
+not_red_rules <- rules[!is.redundant(rules)]
+inspect(not_red_rules)
+```
+
+Non-redundant rules (22 rules): Unique rules that are not derived from others.
+
+### Apriori Conclusion
+
+The function 'run_apriori_with_loop()' generates a total of 36 parameter combinations and the rules obtained for each are analyzed. Some important findings:
+
+1. Impact of support:
+
+  - Lower values (such as 0.005) generate more rules, since they include less frequent items.
+  - Higher values (such as 0.02) restrict rules to more frequent items, reducing their number.
+  
+2. Impact of confidence:
+
+  - Higher confidences (such as 0.7) produce more reliable rules, but also limit the number of rules.
+  - Lower confidences (such as 0.4) generate more rules, although some may be less interesting.
+  
+3. Impact of minimum length (minlen):
+
+  - Higher minimum lengths (such as 3) restrict rules to those with more items, reducing their number.
+  - Lower minimum lengths (such as 1) generate more simple rules.
+
+
+We can see above all the possible combinations between the selected configurations. **We conclude that Support value is 0.005, Confidence is 0.6 and MinLength is 2; is the most balanced**, because the Confidence is not too lower and this combination generates 5 non-redundant rules, a manageable number that maintains reasonably high confidence.
+
+## 5. Associtation Rules: Eclat
+
+### Step 1: Initial Rule Generation
+
+```{r}
+transactionBD <- read.transactions("BreadBasket.csv", format = "single", sep = ",", cols = c("Transaction", "Item"), header = TRUE)
+rules_eclat <- eclat(transactionBD)
+summary(rules_eclat)
+```
+
+
+### Step 2: Testing the algorithm
+
+```{r}
+rules_eclat <- eclat(transactionBD, parameter = list(supp = 0.1, tidLists=TRUE))
+summary(rules_eclat)
+```
+
+
+Texto
+```{r}
+inspect(rules_eclat) # ja ho feim a es apriori
+```
+
+### Step 3. Refining the parameters
+
+As we can se above, only 4 rules are shown. So we will make the parameter research with support values under 0.1.
+The minimum confidence values are going to be the same than with "Apriori".
+
+```{r}
+run_eclat_with_loop <- function(df, supp_values, minconf_values) {
+  result_df <- data.frame()
+
+  for (supp_val in supp_values) {
+    for (minconf_val in minconf_values) {
+      # Step 1: Find frequent itemsets with Eclat
+      freq_itemsets <- eclat(
+        df,
+        parameter = list(
+          supp = supp_val
+        ),
+        control = list(verbose = FALSE)
+      )
+      
+      # Step 2: Check if itemsets were generated
+      if (length(freq_itemsets) == 0) {
+        warning(paste("No frequent itemsets found for support =", supp_val))
+        next
+      }
+      
+      # Step 3: Generate association rules
+      rules <- tryCatch(
+        {
+          ruleInduction(freq_itemsets, confidence = minconf_val)
+        },
+        error = function(e) {
+          warning(paste("Error generating rules for support =", supp_val, 
+                        "and confidence =", minconf_val, ":", e$message))
+          NULL
+        }
+      )
+      
+      # Step 4: Chek if rules were genercated
+      if (is.null(rules) || length(rules) == 0) {
+        warning(paste("No rules generated for support =", supp_val, 
+                      "and confidence =", minconf_val))
+        next
+      }
+
+      # Step 5: Filter redundant rules
+      not_red_rules <- tryCatch(
+        {
+          rules[!is.redundant(rules)]
+        },
+        error = function(e) {
+          warning(paste("Error filtering redundant rules:", e$message))
+          rules
+        }
+      )
+      
+      # Step 6: Redundant Rules
+      red_rules <- tryCatch(
+        {
+          rules[is.redundant(rules)]
+        },
+        error = function(e) {
+          warning(paste("Error filtering redundant rules 2:", e$message))
+          rules
+        }
+      )
+
+      # Step 7: Add results to the dataframe
+      result_df <- rbind(
+        result_df,
+        data.frame(
+          Support = supp_val,
+          Confidence = minconf_val,
+          Total_Rules = length(rules),
+          Redundant_Rules = length(red_rules),
+          Non_Redundant_Rules = length(not_red_rules)
+        )
+      )
+    }
+  }
+
+  return(result_df)
+}
+
+```
+
+```{r include=FALSE}
+# Parameter values
+supp_values <- c(0.005, 0.01, 0.02 ,0.03)
+minconf_values <- c(0.3, 0.4, 0.5, 0.6)
+# Execute the exploration
+result <- run_eclat_with_loop(
+  transactionBD,
+  supp_values,
+  minconf_values
+)
+```
+```{r}
+# Show results
+print(result)
+```
+
+The data frame shows how the support value 0.01 and the confidence 0.5 seems to be the best configuration, because
+12 rules are generated without any redundant. It is interesting to see that a 0.05 of support can be good aswell.
+So it increase the number of rules without creating redundants.
+
+### Step 4. Redundant Rules Treatment
+
+To remove the redundant rules, we do the same as in the Apriori Algorithm. We use
+a configuration which generates some redundant rule.
+
+```{r include=FALSE}
+freq_eclat <- eclat(transactionBD, parameter = list(supp = 0.01))
+```
+
+```{r}
+rules_eclat <- ruleInduction(freq_eclat, confidence = 0.3)
+red_rules <- rules_eclat[is.redundant(rules_eclat)]
+inspect(red_rules)
+```
+This 2 rules are redundant, so we remove them. The next data-frame shows all the rules, without any redundant.
+
+```{r}
+rules_eclat <- rules_eclat[!is.redundant(rules_eclat)]
+inspect(rules_eclat)
+```
+### Eclat Conclusion
+
+The run_elcat_with_loop() function evaluates 15 different combinations of parameters, analyzing the rules generated for each. Key observations include:
+
+1. Effect of Support:
+
+  - Lower support values (e.g., 0.005) result in more rules because they allow for the inclusion of less frequently occurring items.
+  - Higher support values (e.g., 0.03) limit the rules to items that occur more frequently, thereby reducing the total number of rules generated.
+
+2. Effect of Confidence:
+
+  - Higher confidence levels (e.g., 0.6) produce rules that are more reliable. However, with high support values, the number of rules generated can be very limited.
+  - Lower confidence levels (e.g., 0.3) generate a greater number of rules, but some of these rules might be less meaningful or less reliable.
+  
+Based on the analysis of all possible parameter combinations, we conclude that a **Support value of 0.01 and a Confidence value of 0.5** provide the most balanced results. This combination strikes a good balance, as the Confidence level is not too low, and it generates 12 non-redundant rules—a manageable number that still ensures reasonably high reliability.
+
+## Conclusions
+
+This analysis allows to systematically tune the parameters of the Apriori and Eclat algorithm, identify the most relevant rules, and eliminate redundant rules. In addition, it provides an overview of the number of rules generated under different configurations.
+
+This analysis provides valuable insights into understanding purchasing patterns and associations between items, enabling data-driven decision-making. It highlights the importance of balancing parameter values to generate meaningful and interpretable results. By eliminating redundant rules, we focus on the most relevant associations, improving the efficiency of the analysis. Ultimately, this approach enhances our ability to uncover actionable patterns and optimize strategic decisions.
+
+To sum up, this is all the process:
+
+1. Systematically tune parameters to identify optimal configurations.
+2. Filter and prioritize non-redundant rules with stronger associations.
+3. Evaluate the quality of the rules using metrics such as support, confidence, and lift.

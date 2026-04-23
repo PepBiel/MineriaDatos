@@ -1,0 +1,1302 @@
+---
+title: "Assignment 3"
+author: "Jordi Florit Ensenyat, Josep Gabriel Fornés Reynés, Pau Girón Rodríguez"
+date: "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## **1. Introduction**
+
+This assignment aims to build predictive models to classify the loan
+status variable (approved/not approved) for potential applicants using
+the loan_data.csv dataset. The dataset, available on Kaggle, is a
+synthetic version inspired by the original Credit Risk dataset and
+enriched with additional variables based on Financial Risk for Loan
+Approval data. The analysis will be structured as follows:
+
+-   **Data Analysis**: Analyze key features, distribution patterns,
+    relationships, plots, missing data, and outliers to better
+    understand credit risk factors.
+
+-   **Data Processing**: Prepare the data by handling missing values,
+    outliers, and normalizing features to ensure the dataset is ready
+    for modeling.
+
+-   **Classification Methods**: Evaluate different classification
+    methods for modeling loan approval, using various structures and
+    parameters, and compare the models obtained.
+
+This structured approach ensures a comprehensive analysis and comparison
+of different models to identify the most effective one for predicting
+loan approval.
+
+### **1.1. Dataset Information**
+
+The dataset, available on Kaggle
+(<https://www.kaggle.com/datasets/taweilo/loan-approval-classification-data>)
+is a synthetic version inspired by the original Credit Risk dataset and
+enriched with additional variables based on Financial Risk for Loan
+Approval data. SMOTENC was used to simulate new data points to enlarge
+the instances. The dataset is structured for both categorical and
+continuous features.
+
+### **1.2. Variable Information**
+
+The dataset contains 45,000 records and 14 variables. Below is a
+detailed description of each variable:
+
+***1. person age***: Age of the person (numeric)
+
+***2. person gender***: Gender of the person (categorical: female, male)
+
+***3. person education:*** Highest education level (categorical:
+Associate, Bachelor, Doctorate, High School, Master)
+
+***4. person income:*** Annual income (numeric)
+
+***5. person emp exp:*** Years of employment experience (integer)
+
+***6. person home ownership:*** Home ownership status (categorical:
+MORTGAGE, OTHER, OWN, RENT)
+
+***7. loan amnt:*** Loan amount requested (numeric)
+
+***8. loan intent:*** Purpose of the loan (categorical:
+DEBTCONSOLIDATION, EDUCATION, HOMEIMPROVEMENT, MEDICAL, PERSONAL,
+VENTURE)
+
+***9. loan int rate:*** Loan interest rate (numeric)
+
+***10. loan percent income:*** Loan amount as a percentage of annual
+income (numeric)
+
+***11. cb person cred hist length:*** Length of credit history in years
+(numeric)
+
+***12. credit score:*** Credit score of the person (integer)
+
+***13. previous loan defaults on file:*** Indicator of previous loan
+defaults (categorical: No, Yes)
+
+#### **Class label (target variable)**
+
+***14. loan status:*** Loan approval status (integer 1 = approved; 0 =
+rejected)
+
+### **1.3. Research Question**
+
+Utilize the data provided to build predictive models to classify the
+loan status variable (approved/not approved) for potential applicants.
+To answer this question you will:
+
+***a) (5 POINTS) Perform Explanatory Data Analysis:*** analyze key
+features, distribution patterns, relationships, plots, missing data,
+outliers, ... to better understand credit risk factors.
+
+***b) (20 POINTS) Consider different classification methods for
+modelling loan approval.*** For each method, use different structures
+and/or parameters, different training/testing sets, compare the
+different models obtained and comment your results. Which model is the
+“best”?
+
+## **2. Data Analisis**
+
+### **2.1. Importing Data**
+
+First of all, we have to import our data. Here, we are loading the
+necessary libraries and reading the CSV file containing the loan data.
+
+```{r}
+# Load the necessary libraries and read the CSV file containing the loan data
+library(tidyverse)
+library(ggcorrplot)
+library(gridExtra)
+library(ggplot2)
+library(dplyr)
+library(e1071)
+library(caret)
+library(gmodels)
+library(rpart)
+library(rpart.plot)
+
+
+
+data <- read.table("loan_data.csv", header = TRUE, sep = ",")
+```
+
+This is one simple example of the dataset:
+
+```{r}
+# Display the structure of the dataset
+str(data)
+```
+
+The summary data. The summary() function gives a statistical
+summary of each column, including minimum, maximum, mean, and quartiles.
+
+```{r}
+# Display a statistical summary of each column, including minimum, maximum, mean, and quartiles
+summary(data)
+```
+
+### **2.2. Missing Values**
+
+```{r}
+# Identify missing values
+colSums(is.na(data))
+```
+
+The function counts the number of missing values in each column of the
+dataframe. We can see that there are no missing values. This confirms
+that there are no NA values in the dataset, which is crucial to avoid
+errors in further analysis.
+
+### **2.3. Outliers**
+
+As we can see into the summary, there are some **unusual data
+(outliers)**:
+
+***· person_age***: the maximum age of a person in this column is 144,
+which is not very credible and strange data. So now, we are going to
+show the possible outliers into the person_age data. Since we are
+talking in terms of requesting loans, we are going to assume that people
+over 80 years old are not going to request a loan. Now let's visualize
+people over 80 years old.
+
+```{r}
+# Filter rows directly to identify potential outliers in person_age
+outliers_age <- data[data$person_age > 80, ]
+
+# Display the first few rows
+outliers_age
+```
+
+***· person_emp_exp***: there is a person with 125 years of work
+experience, which makes us think that it is unusual and erroneous data.
+Given that work experience generally begins between 15 and 25 years of
+age, and considering an average retirement around 65 years of age, a
+reasonable range for work experience could be 0 to 50 years. Now let's
+look at the people who are in a higher rank.
+
+```{r}
+# Filtrar filas directamente
+outliers_emp_exp <- data[data$person_emp_exp > 50, ]
+
+# Mostrar las primeras filas
+outliers_emp_exp
+```
+
+```{r}
+# Boxplot for person_age
+boxplot(data$person_age,
+        main = "Boxplot of Age (person_age)",
+        xlab = "Age",
+        horizontal = TRUE,
+        col = "skyblue")
+
+# Boxplot for person_emp_exp
+boxplot(data$person_emp_exp,
+        main = "Boxplot of Work Experience (person_emp_exp)",
+        xlab = "Years of Experience",
+        horizontal = TRUE,
+        col = "lightgreen")
+```
+
+After analyzing the previous tables, we have drawn the following
+conclusions regarding the identified outliers:
+
+**1. Overlap between age and work experience:**
+
+· There are 9 individuals who have both more than 80 years of age and
+more than 50 years of work experience.
+
+**2. Outlier classification among these 9 individuals:**
+
+· Out of these 9 individuals, 7 are considered outliers, as their age
+and work experience values are unusually high and implausible.
+
+· Among the remaining two individuals:
+
+· The person with 84 years old and 61 years of work experience seems
+reasonable within the context and will not be considered an outlier.
+
+· The person with 94 years old and 76 years of work experience appears
+less credible, although theoretically possible. However, we decided to
+classify this individual as an outlier due to its high improbability.
+
+**3. Individuals with extreme values individually (age or work
+experience):**
+
+· Those with less than 80 years of age or less than 50 years of work
+experience are not considered outliers. While their data may seem
+unusual, they will remain in the analysis as potentially valid entries.
+
+**4. Impact on modeling:**
+
+· The values identified as non-outliers will be included in the
+predictive models, while extreme values classified as outliers will be
+removed to avoid biases in the analysis.
+
+```{r}
+# Filter values considered as non-outliers
+data_cleaned <- data %>%
+  filter(
+    # Keep those with work experience <= 50 or plausible exceptional cases
+    !(person_age >= 94 & person_emp_exp >= 76), # Case considered outlier
+  )
+
+# Verify the cleaned data
+summary(data_cleaned)
+
+# Save the cleaned data
+write.csv(data_cleaned, "loan_data_cleaned.csv", row.names = FALSE)
+```
+
+With this new data, we can see that there is a person whose
+***person_income is 2448661***. This is a very high value, but we can
+consider it valid, because it is possible.
+
+### **2.4. Relationships**
+
+Now we are going to identify **highly correlated variables**. This is
+important because highly correlated variables can cause problems in
+certain models. Correlation can only be calculated between numeric
+variables. Values range from -1 (perfect negative correlation) to 1
+(perfect positive correlation). Values close to 0 indicate little or no
+variation. It is not desirable to have correlated features if we are
+modeling the data using linear regressions.
+
+```{r}
+# Calculate correlations between numeric variables
+numeric_data <- data_cleaned %>% select_if(is.numeric)
+corr_matrix <- cor(numeric_data, use = "complete.obs")
+
+# Plot the correlation heatmap
+ggcorrplot(corr_matrix, method = "square", type = "full", lab = TRUE, lab_size = 3, 
+           colors = c("#6D9EC1", "white", "#E46726"), title = "Correlation Heatmap")
+```
+
+We are going to carry out the study of the previous correlations.
+
+-   **Stronger correlations**:
+
+    -   **cb_person_cred_hist_length and person_age**: correlation of
+        0.88, which suggests that the older the person is, the longer
+        their credit history is. This is to be expected, since older
+        people tend to have a longer financial history.
+
+    -   **person_age and person_emp_exp**: correlation of 0.95 is an
+        extremely strong correlation between age and work experience.
+        This makes sense, since generally, the older you are, the more
+        time you have spent working.
+
+    -   **person_emp_exp and cb_person_cred_hist_length**: work
+        experience is also highly related to credit history (0.84). This
+        reinforces the idea that these three variables (person_age,
+        person_emp_exp, cb_person_cred_hist_length) contain redundant
+        information, since they all represent, in some way, time in the
+        work or financial system.
+
+This strong correlation suggests that these variables are related, and
+it may be redundant to include both in a predictive model. That can
+cause multicollinearity problems. It is recommended to delete one of
+them or transform them.
+
+As this separation is only recommended for linear regression models, we
+are not going to perform the separation.
+
+-   **Moderate correaltions**:
+
+    -   **loan_amnt and loan_percent_income**: correlation of 0.59, this
+        implies that people who request larger loans tend to dedicate a
+        greater percentage of their income to repaying them.
+
+They appear to be important variables, as they have moderate
+correlations with loan status (loan_status) and with each other. These
+variables are relevant to predict the status of the loan.
+
+-   **loan_status and loan_percent_income**: correlation of 0.38,
+    showing that loans are approved more easily if the percentage is not
+    excessively high.
+
+-   **loan_status and loan_int_rate**: correlation of 0.33, this may
+    indicate that approved loans tend to be associated with specific
+    interest rates, perhaps reflecting that rates are aligned with
+    accepted risk levels.
+
+Weak correlations:
+
+-   **loan_amnt and person_income**: there is a weak but positive
+    correlation (0.31) between loan amount and income. This suggests
+    that income is a relevant factor, but not a determining factor for
+    the amount requested.
+
+-   **person_income and cb_person_cred_hist_length**: correlation of
+    0.13, it could be because having a long credit history is not
+    necessarily linked to high income, but rather to access to credit.
+
+Weak or non-existent correlations:
+
+-   **loan_status and other variables (except credit_score)**: the
+    correlation with loan_status is weak with most variables, implying
+    that there is no strong linear relationship between them.
+
+-   **credit_score with other variables**: has very weak correlations
+    with most variables, such as loan_amnt (0.01) and loan_int_rate
+    (0.01). This could indicate that credit score is not directly
+    related to these variables or that the relationship is not linear.
+    Although this variable is important in the financial world, its low
+    correlation with other variables could imply that it does not
+    provide much predictive value in this dataset (or that the
+    relationship is non-linear).
+
+Now we are going to analyze the variables to find out if they have
+little or no variance:
+
+```{r}
+# Identify variables with low variance
+sapply(data_cleaned, function(x) length(unique(x)))
+```
+
+Most variables with low variance are categorical variables. Let's see
+representations of these variables:
+
+```{r}
+# Bar plot for gender distribution
+plot_gender <- ggplot(data_cleaned, aes(x = person_gender)) +
+  geom_bar(fill = "skyblue", color = "black", alpha = 0.7) +
+  labs(
+    title = "Gender Distribution",
+    x = "Gender",
+    y = "Frequency"
+  ) +
+  theme_minimal()
+
+# Bar plot for home ownership status
+plot_home <- ggplot(data_cleaned, aes(x = person_home_ownership)) +
+  geom_bar(fill = "lightgreen", color = "black", alpha = 0.7) +
+  labs(
+    title = "Home Ownership Distribution",
+    x = "Home Ownership Type",
+    y = "Frequency"
+  ) +
+  theme_minimal()
+
+# Bar plot for education level
+plot_education <- ggplot(data_cleaned, aes(x = person_education)) +
+  geom_bar(fill = "lightpink", color = "black", alpha = 0.7) +
+  labs(
+    title = "Education Level Distribution",
+    x = "Education Level",
+    y = "Frequency"
+  ) +
+  theme_minimal()
+
+# Bar plot for loan intent
+plot_intent <- ggplot(data_cleaned, aes(x = loan_intent)) +
+  geom_bar(fill = "coral", color = "black", alpha = 0.7) +
+  labs(
+    title = "Loan Intent Distribution",
+    x = "Loan Intent",
+    y = "Frequency"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 10, hjust = 1))
+
+# Bar plot for previous loan defaults
+plot_defaults <- ggplot(data_cleaned, aes(x = previous_loan_defaults_on_file)) +
+  geom_bar(fill = "orange", color = "black", alpha = 0.7) +
+  labs(
+    title = "Previous Loan Defaults Distribution",
+    x = "Previous Loan Defaults",
+    y = "Frequency"
+  ) +
+  theme_minimal()
+
+# Bar plot for loan status
+plot_status <- ggplot(data_cleaned, aes(x = loan_status)) +
+  geom_bar(fill = "purple", color = "black", alpha = 0.7) +
+  labs(
+    title = "Loan Status Distribution",
+    x = "Loan Status",
+    y = "Frequency"
+  ) +
+  theme_minimal()
+
+# Combine all the plots in a grid
+grid.arrange(
+  plot_gender, plot_home, plot_education,
+  plot_intent, plot_defaults, plot_status,
+  ncol = 2
+)
+
+```
+
+Also we can see some variable distribution.
+
+```{r}
+# Distribution of Key Features
+# Age Distribution
+age_plot <- ggplot(data_cleaned, aes(x = person_age)) +
+  geom_histogram(binwidth = 5, fill = "blue", color = "black", alpha = 0.7) +
+  ggtitle("Age Distribution") +
+  xlab("Age") +
+  ylab("Count")
+
+# Income Distribution
+income_plot <- ggplot(data_cleaned, aes(x = person_income)) +
+  geom_histogram(binwidth = 10000, fill = "green", color = "black", alpha = 0.7) +
+  ggtitle("Income Distribution") +
+  xlab("Income") +
+  ylab("Count")
+
+# Loan Amount Distribution
+loan_amount_plot <- ggplot(data_cleaned, aes(x = loan_amnt)) +
+  geom_histogram(binwidth = 5000, fill = "orange", color = "black", alpha = 0.7) +
+  ggtitle("Loan Amount Distribution") +
+  xlab("Loan Amount") +
+  ylab("Count")
+
+# Credit Score Distribution
+credit_score_plot <- ggplot(data_cleaned, aes(x = credit_score)) +
+  geom_histogram(binwidth = 50, fill = "red", color = "black", alpha = 0.7) +
+  ggtitle("Credit Score Distribution") +
+  xlab("Credit Score") +
+  ylab("Count")
+
+# Display all distribution plots
+grid.arrange(age_plot, income_plot, loan_amount_plot, credit_score_plot, ncol = 2)
+```
+
+**Creating diferents datasetes**
+
+```{r}
+data_cleaned_factor <- read.csv("loan_data_cleaned.csv", header=TRUE, stringsAsFactors = TRUE)
+```
+
+Dataset with normalization between 0-1 without categorical factors. The
+normalization is created with the function:
+$$X{\text{norm}} = \frac{X - X{\min}}{X{\max} - X{\min}}$$
+
+```{r}
+# Create normalized dataset
+normalize <- function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+
+# Create a copy of the original dataset for normalization
+data_cleaned_normalized <- data_cleaned
+
+# Apply normalization in the new dataset
+data_cleaned_normalized$person_age <- normalize(data_cleaned$person_age)
+data_cleaned_normalized$person_income <- normalize(data_cleaned$person_income)
+data_cleaned_normalized$person_emp_exp <- normalize(data_cleaned$person_emp_exp)
+data_cleaned_normalized$loan_amnt <- normalize(data_cleaned$loan_amnt)
+data_cleaned_normalized$loan_int_rate <- normalize(data_cleaned$loan_int_rate)
+data_cleaned_normalized$credit_score <- normalize(data_cleaned$credit_score)
+data_cleaned_normalized$cb_person_cred_hist_length <- normalize(data_cleaned$cb_person_cred_hist_length)
+
+# Verify the changes in the new dataset
+summary(data_cleaned_normalized)
+```
+
+Dataset with categorical factors and normalization between 0-1
+
+```{r}
+# Create a copy of the original dataset to apply normalization
+data_cleaned_factor_normalized <- data_cleaned_factor
+
+# Apply normalization to the new dataset
+data_cleaned_factor_normalized$person_age <- normalize(data_cleaned_factor$person_age)
+data_cleaned_factor_normalized$person_income <- normalize(data_cleaned_factor$person_income)
+data_cleaned_factor_normalized$person_emp_exp <- normalize(data_cleaned_factor$person_emp_exp)
+data_cleaned_factor_normalized$loan_amnt <- normalize(data_cleaned_factor$loan_amnt)
+data_cleaned_factor_normalized$loan_int_rate <- normalize(data_cleaned_factor$loan_int_rate)
+data_cleaned_factor_normalized$credit_score <- normalize(data_cleaned_factor$credit_score)
+data_cleaned_factor_normalized$cb_person_cred_hist_length <- normalize(data_cleaned_factor$cb_person_cred_hist_length)
+
+# Verify the changes in the new dataset
+summary(data_cleaned_factor_normalized)
+```
+
+Dataset normalization with function **scale()** without categorical
+factors. The scale function normalize our data this way:
+$$X_{\text{scaled}} = \frac{X - \mu}{\sigma}$$
+
+```{r}
+# Create normalized dataset using scale() function
+numeric_columns <- data_cleaned %>% select_if(is.numeric) %>% select(-loan_status) %>% names()
+data_cleaned_normalized2 <- data_cleaned  # Create a copy for scaled data
+data_cleaned_normalized2[, numeric_columns] <- scale(data_cleaned[, numeric_columns])
+
+# Verify the summary of the scaled dataset
+summary(data_cleaned_normalized2)
+```
+
+Dataset normalization with function **scale()** and categorical factors.
+
+```{r}
+# Normalization of numeric columns using scale()
+# Ensure that only numeric columns are normalized
+numeric_columns <- data_cleaned %>% select_if(is.numeric) %>% select(-loan_status) %>% names()
+data_cleaned_factor_normalized2 <- data_cleaned_factor  # Create a copy for scaled data
+data_cleaned_factor_normalized2[, numeric_columns] <- scale(data_cleaned[, numeric_columns])
+
+# Verify the summary of the scaled dataset
+summary(data_cleaned_factor_normalized2)
+```
+
+## **3. Classification methods**
+
+With our pre-processed data, we are now ready to develop and evaluate
+classification models to predict loan approval. For this study, we will
+use three different machine learning models, each representing distinct
+approaches to classification. The chosen models are:
+
+**1. K-Nearest Neighbors (K-NN)**: A distance-based method that
+classifies an instance based on its proximity to the k nearest neighbors
+in the data-set.
+
+**2. Naïve Bayes**: A probabilistic classifier that assumes independence
+between attributes, offering a simple yet effective solution for many
+problems.
+
+**3. Decision trees**: A tree-based method that splits data recursively
+based on attribute values, providing an interpretable model with clear
+decision rules.
+
+To ensure a robust evaluation of these models, we will use two
+data-splitting techniques:
+
+**1. Hold out**: A simple method where the data-set is divided into a
+single training set and test set, typically using an 80/20 split.
+
+**2. K-fold**: A more comprehensive approach where the data-set is
+divided into k subsets (folds), and the model is trained and tested
+iteratively on different combinations of these folds.
+
+After training and testing the models using these methods, we will
+perform a comparative analysis to assess their performance. Key
+evaluation metrics such as accuracy, F1-score, and ROC-AUC will be used
+to determine the strengths and weaknesses of each model.
+
+### **3.1. Data Preparation and Normalization**
+
+In this section, we prepare the cleaned dataset for training and testing
+by dividing it into appropriate subsets with hold-out method.We will use
+two different type of normalization, but it only has repercussion in the
+K-NN Model. We have proved that in Tree Decision Model and Naive Bayes,
+the type of normalization doesn't have influence in the results.
+
+**First hold-out**
+
+Uses normalized data (with normalize() function) and removes categorical
+variables, leaving only numerical predictors.
+
+```{r}
+# 1. Separate features (X) and the target variable (y)
+X <- data_cleaned_normalized %>% select(-loan_status)  # All columns except the target variable
+y <- as.factor(data_cleaned_normalized$loan_status)   # Convert the target variable into a factor (for classification)
+
+# 2. Remove categorical variables from X
+X <- X %>% select_if(is.numeric)  # Select only numeric columns
+
+# 3. Split the data into training (80%) and test (20%) sets
+set.seed(42)
+train_index <- createDataPartition(y, p = 0.8, list = FALSE)
+X_train <- X[train_index, ]
+X_test <- X[-train_index, ]
+y_train <- y[train_index]
+y_test <- y[-train_index]
+
+# Verify the dimensions of the resulting datasets
+cat("Dimensions of X_train:", dim(X_train), "\n")
+cat("Dimensions of X_test:", dim(X_test), "\n")
+cat("Dimensions of y_train:", length(y_train), "\n")
+cat("Dimensions of y_test:", length(y_test), "\n")
+```
+
+**Second hold-out**
+
+Uses normalized data (with normalize() funcion) with categorical
+variables converted into factors, keeping them as predictors.
+
+```{r}
+# 1. Separate features (X) and the target variable (y)
+X <- data_cleaned_factor_normalized %>% select(-loan_status)  # All columns except the target variable
+y <- as.factor(data_cleaned_factor_normalized$loan_status)   # Convert the target variable into a factor (for classification)
+
+# 4. Split the data into training (80%) and test (20%) sets
+set.seed(42)
+train_index <- createDataPartition(y, p = 0.8, list = FALSE)
+X_train2 <- X[train_index, ]
+X_test2 <- X[-train_index, ]
+y_train2 <- y[train_index]
+y_test2 <- y[-train_index]
+
+# Verify the dimensions of the resulting datasets
+cat("Dimensions of X_train:", dim(X_train2), "\n")
+cat("Dimensions of X_test:", dim(X_test2), "\n")
+cat("Dimensions of y_train:", length(y_train2), "\n")
+cat("Dimensions of y_test:", length(y_test2), "\n")
+```
+
+**Third hold-out**
+
+Similar to the first, but with a second set of normalized data (with
+scale() function), again removing categorical variables to compare the
+effects of different normalizations.
+
+```{r}
+# 1. Separate features (X) and the target variable (y)
+X <- data_cleaned_normalized2 %>% select(-loan_status)  # All columns except the target variable
+y <- as.factor(data_cleaned_normalized2$loan_status)   # Convert the target variable into a factor (for classification)
+
+# 2. Remove categorical variables from X
+X <- X %>% select_if(is.numeric)  # Select only numeric columns
+
+# 3. Split the data into training (80%) and test (20%) sets
+set.seed(42)
+train_index <- createDataPartition(y, p = 0.8, list = FALSE)
+X_train3 <- X[train_index, ]
+X_test3 <- X[-train_index, ]
+y_train3 <- y[train_index]
+y_test3 <- y[-train_index]
+
+# Verify the dimensions of the resulting datasets
+cat("Dimensions of X_train:", dim(X_train3), "\n")
+cat("Dimensions of X_test:", dim(X_test3), "\n")
+cat("Dimensions of y_train:", length(y_train3), "\n")
+cat("Dimensions of y_test:", length(y_test3), "\n")
+
+```
+
+**Fourth hold-out**
+
+Similar to the second, but based on the second dataset (with scale()
+function), keeping categorical variables as factors after the second
+normalization.
+
+```{r}
+# 1. Separate features (X) and the target variable (y)
+X <- data_cleaned_factor_normalized2 %>% select(-loan_status)  # All columns except the target variable
+y <- as.factor(data_cleaned_factor_normalized2$loan_status)   # Convert the target variable into a factor (for classification)
+
+# 2. Split the data into training (80%) and test (20%) sets
+set.seed(42)
+train_index <- createDataPartition(y, p = 0.8, list = FALSE)
+X_train4 <- X[train_index, ]
+X_test4 <- X[-train_index, ]
+y_train4 <- y[train_index]
+y_test4 <- y[-train_index]
+
+# Verify the dimensions of the resulting datasets
+cat("Dimensions of X_train:", dim(X_train4), "\n")
+cat("Dimensions of X_test:", dim(X_test4), "\n")
+cat("Dimensions of y_train:", length(y_train4), "\n")
+cat("Dimensions of y_test:", length(y_test4), "\n")
+```
+
+### **3.2. Training Models**
+
+#### **3.2.1. K-Nearest Neighbors (K-NN)**
+
+[**With K-Fold Cross validation**]{.underline}
+
+In this model with Cross validation we can find out the best **K** for
+the model and in the following experiments we will use this one. We do
+this because finding the hyper-parameter for each model would be very
+computationally expensive.
+
+```{r}
+set.seed(42)
+
+# Step 1: Use dummyVars() to convert categorical variables to One-Hot encoding
+dummies_model <- dummyVars(" ~ .", data = X_train4, fullRank = TRUE)
+
+# Transform the training data using predict()
+X_train4_encoded <- predict(dummies_model, newdata = X_train4)
+
+# Apply the same transformation to the test data
+X_test4_encoded <- predict(dummies_model, newdata = X_test4)
+
+# Note: X_train4_encoded and X_test4_encoded are now matrices, you can convert them to data frames if preferred
+X_train4_encoded <- as.data.frame(X_train4_encoded)
+X_test4_encoded <- as.data.frame(X_test4_encoded)
+
+# Step 2: Set up K-Fold cross-validation
+k <- 5
+kfold_control <- trainControl(method = "cv", number = k)
+
+# Step 3: Train the K-NN model with K-Fold using the encoded data
+knn_kfold_model <- train(
+  x = X_train4_encoded,  # Use observations with encoded variables for cross-validation
+  y = y_train4,
+  method = "knn",
+  tuneGrid = expand.grid(k = seq(1, 15, by = 2)),  # Test different values of k
+  trControl = kfold_control,
+  metric = "Accuracy"
+)
+
+# Step 4: Print details of the trained model
+print(knn_kfold_model)
+cat("Best k value (K-Fold):", knn_kfold_model$bestTune$k, "\n")
+
+# Step 5: Make predictions on the test set
+# Here we correct to use X_test4_encoded
+knn_predictions <- predict(knn_kfold_model, X_test4_encoded)
+
+# Step 6: Evaluate the model on the test set
+confusion <- confusionMatrix(knn_predictions, y_test4)
+print(confusion)
+
+```
+
+[**Without K-Fold Cross validation**]{.underline}
+
+**Without categorical factors** and using **normalization between 0-1**.
+Also we assume k = 13.
+
+```{r}
+set.seed(42)
+
+# Select a fixed value for k (adjust as needed)
+best_k <- 13  # Assuming this is the best k value found previously
+
+# Train the K-NN model with a single k value
+knn_model <- train(
+  x = X_train,
+  y = y_train,
+  method = "knn",
+  tuneGrid = expand.grid(k = best_k),  # Single value for k
+  metric = "Accuracy",
+  trControl = trainControl(method = "none")  # No cross-validation
+)
+
+# Print details of the trained model
+print(knn_model)
+
+# Make predictions on the test set
+knn_predictions <- predict(knn_model, X_test)
+
+# Evaluate the model on the test set
+confusion <- confusionMatrix(knn_predictions, y_test)
+print(confusion)
+```
+
+**With categorical transform and normalization (0-1):**
+
+**One-hot encoding** is a technique used to convert categorical
+variables into a format that machine learning models can use. Models
+cannot directly handle text labels or categories because they require
+numerical values as input. After we transform the categorical data we do
+**one-hot encoding**, to use this transform data in the K-NN model.
+
+```{r}
+set.seed(42)
+
+# Assume your training and testing datasets are as follows:
+# X_train2 contains the training predictors
+# y_train2 contains the training target variable
+
+# Step 1: Use dummyVars() to convert categorical variables into One-Hot encoding
+dummies_model <- dummyVars(" ~ .", data = X_train2, fullRank = TRUE)
+
+# Transform the training data using predict()
+X_train2_encoded <- predict(dummies_model, newdata = X_train2)
+
+# Apply the same transformation to the test data
+X_test2_encoded <- predict(dummies_model, newdata = X_test2)
+
+# Note: X_train2_encoded and X_test2_encoded are now matrices; you can convert them to data frames if preferred
+X_train2_encoded <- as.data.frame(X_train2_encoded)
+X_test2_encoded <- as.data.frame(X_test2_encoded)
+
+# Step 2: Train the K-NN model with the selected k value
+
+# Train the K-NN model with a single k value
+knn_model <- train(
+  x = X_train2_encoded,
+  y = y_train2,
+  method = "knn",
+  tuneGrid = expand.grid(k = best_k),  # Single value for k
+  metric = "Accuracy",
+  trControl = trainControl(method = "none")  # No cross-validation
+)
+
+# Print details of the trained model
+print(knn_model)
+
+# Make predictions on the test set
+knn_predictions <- predict(knn_model, X_test2_encoded)
+
+# Evaluate the model on the test set
+confusion <- confusionMatrix(knn_predictions, y_test2)
+print(confusion)
+```
+
+**Without categorical data** and using **normalization with function**
+**scale()**:
+
+```{r}
+set.seed(42)
+
+# Select a fixed value for k (adjust as needed)
+best_k <- 13  # Assuming this is the best k value found previously
+
+# Train the K-NN model with a single k value
+knn_model <- train(
+  x = X_train3,
+  y = y_train3,
+  method = "knn",
+  tuneGrid = expand.grid(k = best_k),  # Single value for k
+  metric = "Accuracy",
+  trControl = trainControl(method = "none")  # No cross-validation
+)
+
+# Print details of the trained model
+print(knn_model)
+
+# Make predictions on the test set
+knn_predictions <- predict(knn_model, X_test3)
+
+# Evaluate the model on the test set
+confusion <- confusionMatrix(knn_predictions, y_test3)
+print(confusion)
+```
+
+**With categorical transform** and **normalization with function
+scale()**:
+
+Also we do **one-hot encoding**
+
+```{r}
+set.seed(42)
+
+# Assume your training and testing datasets are:
+# X_train4 contains the training predictors
+# y_train4 contains the training target variable
+
+# Step 1: Use dummyVars() to convert categorical variables into One-Hot encoding
+dummies_model <- dummyVars(" ~ .", data = X_train4, fullRank = TRUE)
+
+# Transform the training data using predict()
+X_train4_encoded <- predict(dummies_model, newdata = X_train4)
+
+# Apply the same transformation to the test data
+X_test4_encoded <- predict(dummies_model, newdata = X_test4)
+
+# Note: X_train4_encoded and X_test4_encoded are now matrices; you can convert them to data frames if preferred
+X_train4_encoded <- as.data.frame(X_train4_encoded)
+X_test4_encoded <- as.data.frame(X_test4_encoded)
+
+# Step 2: Train the K-NN model with the selected k value
+
+# Train the K-NN model with a single k value
+knn_model <- train(
+  x = X_train4_encoded,
+  y = y_train4,
+  method = "knn",
+  tuneGrid = expand.grid(k = best_k),  # Single value for k
+  metric = "Accuracy",
+  trControl = trainControl(method = "none")  # No cross-validation
+)
+
+# Print details of the trained model
+print(knn_model)
+
+# Make predictions on the test set
+knn_predictions <- predict(knn_model, X_test4_encoded)
+
+# Evaluate the model on the test set
+confusion <- confusionMatrix(knn_predictions, y_test4)
+print(confusion)
+```
+
+**Conclusion**
+
+From the results of the five k-NN models, the following observations can
+be made:
+
+1.  The model with k-fold cross-validation performed the best overall,
+    achieving the highest accuracy (89.65%) and balanced accuracy
+    (82.05%) when using 22 predictors and the optimal k=15.
+    Cross-validation likely improved generalizability by mitigating
+    over-fitting.
+
+2.  Models without categorical data generally outperformed those with
+    categorical transformations, as the categorical versions had lower
+    accuracy and kappa values, showing limited added value from
+    categorical variables.
+
+3.  Using normalization (0-1) consistently yielded higher accuracy and
+    kappa scores compared to the scale function, indicating that feature
+    scaling methods can influence model performance significantly.
+
+4.  Models with fewer predictors (8) performed worse, showing reduced
+    accuracy (\~83.4%) and balanced accuracy (\~70.5%), likely due to
+    loss of information after excluding many features.
+
+5.  Overall, normalization and including all numerical predictors (22
+    features) yielded the most effective results, especially when
+    combined with cross-validation, underscoring the importance of
+    feature selection and validation strategies in k-NN performance.
+
+#### **3.2.2. Naïve Bayes**
+
+[**Without K-Fold Cross Validation**]{.underline}
+
+Just as it has been done in the case of K-NN, training 4 models with
+different datasets, we now apply it with Naïve Bayes.
+
+**Without categorical data** and using **normalization between 0-1**:
+
+```{r}
+# Train the Naive Bayes model with Laplace smoothing
+set.seed(42)
+naive_model <- naiveBayes(x = X_train, y = y_train, laplace = 1)
+
+# Make predictions on the test set
+naive_predictions <- predict(naive_model, X_test)
+
+# Confusion matrix to evaluate the model
+confusion <- confusionMatrix(naive_predictions, y_test)
+print(confusion)
+```
+
+**With categorical transform and normalization (0-1):**
+
+```{r}
+# Train the Naive Bayes model with Laplace smoothing
+set.seed(42)
+naive_model <- naiveBayes(x = X_train2, y = y_train2, laplace = 1)
+
+# Make predictions on the test set
+naive_predictions <- predict(naive_model, X_test2)
+
+# Confusion matrix to evaluate the model
+confusion <- confusionMatrix(naive_predictions, y_test2)
+print(confusion)
+```
+
+**Without categorical data** and using **normalization with function
+scale()**:
+
+```{r}
+# Train the Naive Bayes model with Laplace smoothing
+set.seed(42)
+naive_model <- naiveBayes(x = X_train3, y = y_train3, laplace = 1)
+
+# Make predictions on the test set
+naive_predictions <- predict(naive_model, X_test3)
+
+# Confusion matrix to evaluate the model
+confusion <- confusionMatrix(naive_predictions, y_test3)
+print(confusion)
+```
+
+**With categorical transform** and **normalization with function
+scale()**:
+
+```{r}
+# Train the Naive Bayes model with Laplace smoothing
+set.seed(42)
+naive_model <- naiveBayes(x = X_train4, y = y_train4, laplace = 1)
+
+# Make predictions on the test set
+naive_predictions <- predict(naive_model, X_test4)
+
+# Confusion matrix to evaluate the model
+confusion <- confusionMatrix(naive_predictions, y_test4)
+print(confusion)
+```
+
+[**With K-Fold Cross Validation**]{.underline}
+
+In this case, we aimed to use the K-Fold Cross-Validation method, but
+encountered an issue with several warnings such as "Numerical 0
+probability for all classes with observation." After investigating the
+issue, we concluded that it is likely due to the imbalance in the target
+variable, where class 0 has significantly more observations than
+class 1. As a result, when the model creates the folds, some folds may
+contain very few or no examples of class 1, leading to this warning.
+(Finally we removed the Warnings in the chunk, and see anyways how
+affect to the model)
+
+```{r warning=FALSE}
+# Configure K-Fold cross-validation
+set.seed(42)
+
+# Use caret with K-Fold and SMOTE
+kfold_control <- trainControl(method = "cv", number = 5)
+
+# Train the Naive Bayes model using K-Fold cross-validation
+naive_kfold_model <- train(
+  x = X_train,
+  y = y_train,
+  method = "nb",
+  trControl = kfold_control,
+  metric = "Accuracy",
+  tuneGrid = expand.grid(fL = 1, usekernel = FALSE, adjust = 1)  # With smoothing
+)
+
+# Print details of the trained model
+print(naive_kfold_model)
+
+# Make predictions on the test set
+naive_kfold_predictions <- predict(naive_kfold_model, X_test)
+
+# Confusion matrix to evaluate the model on the test set
+confusion <- confusionMatrix(naive_kfold_predictions, y_test)
+print(confusion)
+```
+
+**Conclusion**
+
+The Naive Bayes models exhibit varied performance based on the
+preprocessing and validation approach used:
+
+1.  Models without categorical data and normalization (0-1) show a lower
+    accuracy (\~81.92%) and Kappa (\~0.43), indicating moderate
+    agreement and predictive ability. The Balanced Accuracy (\~69.57%)
+    highlights suboptimal specificity (47.35%).
+
+2.  Models with categorical transformation and normalization (0-1)
+    achieve a higher accuracy (\~88.22%) and Kappa (\~0.66). This
+    improvement stems from better integration of categorical variables,
+    resulting in a Balanced Accuracy of 82.82% and enhanced specificity
+    (73.10%).
+
+3.  Cross-validated Naive Bayes (k-fold) achieves similar performance to
+    the single hold-out models without categorical data, maintaining
+    accuracy (81.92%) and consistent sensitivity (\~91.8%) but low
+    specificity (47.35%).
+
+These results demonstrate that incorporating categorical data
+significantly improves Naive Bayes performance, with normalization
+contributing modestly. K-fold validation ensures generalizability but
+does not inherently enhance the model’s accuracy compared to the best
+single hold-out scenarios.
+
+#### **3.2.3. Decision trees**
+
+[**Without K-Fold Cross Validation**]{.underline}
+
+Just as it was done in the case of K-NN,and Naïve Bayes where 4 models
+were trained using different data-sets, we now apply the same approach
+with decision trees. Four separate models are trained and evaluated,
+considering variations in data-sets: with and without categorical data,
+as well as with and without normalization.
+
+**Without categorical data**
+
+```{r}
+# Train the decision tree model
+set.seed(42)
+decision_tree_model <- rpart(
+  formula = y_train ~ .,  # Formula: y_train as the dependent variable and all columns of X_train as independent variables
+  data = data.frame(X_train, y_train),  # Create a data frame combining X_train and y_train
+  method = "class"  # Method for classification
+)
+
+# Model summary
+print(decision_tree_model)
+
+# Visualize the decision tree
+rpart.plot(decision_tree_model, type = 2, extra = 102, main = "Decision Tree")
+
+# Predictions on the test set
+decision_tree_predictions <- predict(decision_tree_model, data.frame(X_test), type = "class")
+
+# Model evaluation
+confusion <- confusionMatrix(decision_tree_predictions, y_test)
+print(confusion)
+
+```
+
+**With categorical data**
+
+```{r}
+library(rpart)
+library(rpart.plot)
+
+# Train the decision tree model
+set.seed(42)
+decision_tree_model <- rpart(
+  formula = y_train2 ~ .,  # Formula: y_train2 as the dependent variable and all columns of X_train2 as independent variables
+  data = data.frame(X_train2, y_train2),  # Create a data frame combining X_train2 and y_train2
+  method = "class"  # Method for classification
+)
+
+# Model summary
+print(decision_tree_model)
+
+# Visualize the decision tree
+rpart.plot(decision_tree_model, type = 2, extra = 102, main = "Decision Tree")
+
+# Predictions on the test set
+decision_tree_predictions <- predict(decision_tree_model, data.frame(X_test2), type = "class")
+
+# Model evaluation
+confusion <- confusionMatrix(decision_tree_predictions, y_test2)
+print(confusion)
+
+```
+
+[**With K-Fold Cross Validation**]{.underline}
+
+In this case, we conducted two experiments: one without categorical data
+and another including categorical data.
+
+**Without categorical data**
+
+```{r}
+# Set up K-Fold cross-validation
+set.seed(42)
+kfold_control <- trainControl(method = "cv", number = 5)
+
+# Train the decision tree model with K-Fold
+set.seed(42)
+decision_tree_model <- train(
+  x = X_train,
+  y = y_train,
+  method = "rpart",  # Method for decision tree in caret
+  trControl = kfold_control,
+  metric = "Accuracy",  # Evaluation metric
+  tuneGrid = expand.grid(cp = seq(0.01, 0.1, by = 0.01))  # Test different complexity parameter (cp) values
+)
+
+# Print the model results
+print(decision_tree_model)
+
+# Best hyperparameter (cp)
+cat("Best cp value:", decision_tree_model$bestTune$cp, "\n")
+
+# Predictions on the test set
+tree_predictions <- predict(decision_tree_model, X_test)
+
+# Model evaluation
+confusion <- confusionMatrix(tree_predictions, y_test)
+print(confusion)
+
+```
+
+**With categorical data**
+
+```{r}
+# Set up K-Fold cross-validation
+set.seed(42)
+kfold_control <- trainControl(method = "cv", number = 5)
+
+# Train the decision tree model with K-Fold
+set.seed(42)
+decision_tree_model <- train(
+  x = X_train2,
+  y = y_train2,
+  method = "rpart",  # Method for decision tree in caret
+  trControl = kfold_control,
+  metric = "Accuracy",  # Evaluation metric
+  tuneGrid = expand.grid(cp = seq(0.01, 0.1, by = 0.01))  # Test different complexity parameter (cp) values
+)
+
+# Print the model results
+print(decision_tree_model)
+
+# Best hyperparameter (cp)
+cat("Best cp value:", decision_tree_model$bestTune$cp, "\n")
+
+# Predictions on the test set
+tree_predictions <- predict(decision_tree_model, X_test2)
+
+# Model evaluation
+confusion <- confusionMatrix(tree_predictions, y_test2)
+print(confusion)
+
+```
+
+**Conclusion**
+
+The results show that decision tree models improve significantly when
+categorical data is included. In models without categorical variables,
+sensitivity is high (92.77%), but specificity is low (58.00%),
+indicating an imbalance in classification. When categorical variables
+are incorporated, both sensitivity (96.90%) and specificity (71.55%)
+increase significantly, resulting in a more balanced accuracy (91.26%
+accuracy, Balanced Accuracy = 84.22%). This highlights the importance of
+considering all relevant variables in the model. Additionally, higher
+Kappa values with categorical data reflect better consistency in
+predictions. Finally, cross-validation confirms the stability of the
+model's performance.
+
+## **4. Main Conclusion**
+
+This assignment set out to develop predictive models to classify loan
+approval statuses by thoroughly analyzing and processing a dataset,
+followed by implementing machine learning techniques. Through the
+process, a comprehensive understanding of the dataset and the models was
+achieved, leading to insightful conclusions and the successful
+completion of the proposed objectives.
+
+The first step involved a detailed Exploratory Data Analysis (EDA). Key
+features were analyzed for distributions, correlations, and potential
+anomalies. Missing values were addressed, and outliers—such as
+unrealistic ages and excessive work experience—were identified and
+removed. Relationships between variables were explored, revealing
+significant correlations, like the one between age and credit history
+length, and their impact on the model's performance.
+
+Data preprocessing played a crucial role in ensuring model readiness.
+The dataset was prepared in various forms: normalized, standardized, and
+with categorical variables either encoded or left as factors. This
+enabled the comparison of how different data transformations affected
+model performance. Additionally, redundant variables and correlated
+features were handled strategically to minimize biases and
+multicollinearity.
+
+With clean and prepared datasets, three machine learning models were
+implemented and evaluated:
+
+1.  **K-Nearest Neighbors (K-NN)**: This model benefited significantly
+    from normalization and hyperparameter tuning through k-fold
+    cross-validation, achieving a high accuracy of 89.65%. However,
+    incorporating categorical variables did not yield substantial
+    improvements, highlighting the model's reliance on numerical
+    features.
+
+2.  **Naïve Bayes**: This model demonstrated notable improvements when
+    categorical data was included, achieving an accuracy of 88.22%. Its
+    reliance on feature diversity emphasized the importance of robust
+    feature engineering.
+
+3.  **Decision Trees**: This model outperformed others, achieving an
+    accuracy of 91.26% with categorical data. The tree's balance of
+    sensitivity and specificity made it a standout choice, particularly
+    when combined with k-fold cross-validation for fine-tuning.
+
+The evaluation of these models revealed that **decision trees** were the
+most effective in balancing predictive performance and interpretability,
+making them ideal for this classification task. K-fold cross-validation
+emerged as an invaluable technique for robust model assessment and
+hyperparameter optimization.
+
+The assignment provided critical insights into the importance of data
+preparation and feature engineering. Addressing outliers and leveraging
+the full potential of categorical variables were decisive factors in the
+success of the models. Moreover, the comparison between normalization
+techniques underscored the impact of preprocessing on models like K-NN,
+which rely on distance metrics.
+
+In conclusion, this project achieved its objectives by constructing and
+evaluating predictive models for loan approval classification. The
+decision tree model, particularly when trained with categorical
+variables, proved to be the best-performing and most interpretable
+solution. This process reinforced the value of systematic data analysis,
+preprocessing, and validation in developing effective machine learning
+models.

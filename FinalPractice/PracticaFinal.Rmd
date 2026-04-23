@@ -1,0 +1,2086 @@
+---
+title: "Final practice"
+author: Antonio Torres Escribano, Jaume Cantallops Comas, Jordi Florit Ensenyat, Josep
+  Gabriel Fornes Reynes and Pau Girón Rodríguez
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+  pdf_document: default
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+## 1. Introduction
+
+Real estate investment is a cornerstone of financial growth, yet it
+remains a complex and often unpredictable field. Investors frequently
+struggle to identify profitable opportunities due to the overwhelming
+number of factors influencing property values, as well as the lack of
+systematic, data-driven approaches to decision-making.
+
+The primary objective of this research is to determine the key
+characteristics that should guide investment decisions in residential
+properties across Portugal. By analyzing patterns within real estate
+data, this study aims to empower investors to make more informed and
+strategic choices, reducing the risks associated with traditional
+methods based on intuition or incomplete information.
+
+To tackle this challenge, the problem has been divided into three
+specific sub-questions, each contributing to the overall understanding
+of the problem:
+
+1.  Identifying the factors that most influence property prices: What
+    variables, such as location, play the largest role in determining a
+    property’s value?
+
+2.  Recognizing high-value property traits: What common characteristics
+    are shared by properties with higher prices, and how can these
+    traits be used to identify similar investment opportunities?
+
+3.  Highlighting areas with undervalued properties: Which regions in
+    Portugal have a higher density of properties that are priced below
+    their true market value, offering potential for high returns?
+
+By addressing these questions, this study not only seeks to provide
+clarity on the drivers of property value but also aims to uncover hidden
+opportunities in the market. The use of data-driven methodologies
+ensures that the analysis is objective, reliable, and capable of
+adapting to the dynamic nature of real estate trends.
+
+Ultimately, this research will serve as a practical guide for investors
+looking to maximize their returns in the Portuguese housing market,
+demonstrating the transformative potential of data science in solving
+real-world problems.
+
+# 2. Exploratory Data Analysis (EDA)
+
+## 2.1 Loading and Inspecting the Dataset
+
+```{r message=FALSE}
+library(visdat)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(reshape2)
+library(ggcorrplot)
+library(corrplot)
+library(cluster)
+```
+
+```{r}
+portugal_data <- read.csv(file = 'portugal_housing.csv')
+```
+
+```{r}
+str(portugal_data)
+```
+
+## 2.2 Missing values
+
+Here we will see how there are columns that, instead of having NA,
+contain empty values ("").
+
+```{r}
+head(levels(as.factor(portugal_data$Town)))
+```
+
+We replace the variables that contain `Ã\u0081zere` with Azere.
+
+```{r}
+portugal_data <- portugal_data %>%
+  mutate(Town = if_else(Town == "Ã\u0081zere", "Azere", Town))
+```
+
+Then we'll check the categorical values as factors
+
+```{r}
+levels(as.factor(portugal_data$Type))
+```
+
+```{r}
+levels(as.factor(portugal_data$EnergyCertificate))
+```
+
+```{r}
+levels(as.factor(portugal_data$Floor))
+```
+
+```{r}
+levels(as.factor(portugal_data$Lift))
+```
+
+```{r}
+levels(as.factor(portugal_data$HasParking))
+```
+
+```{r}
+head(levels(as.factor(portugal_data$PublishDate)))
+```
+
+```{r}
+levels(as.factor(portugal_data$Garage))
+```
+
+```{r}
+levels(as.factor(portugal_data$Elevator))
+```
+
+```{r}
+levels(as.factor(portugal_data$ElectricCarsCharging))
+```
+
+```{r}
+levels(as.factor(portugal_data$ConservationStatus))
+```
+
+Instead of having empty values, we will replace these values with NA:
+
+```{r}
+portugal_data$Town[portugal_data$Town == ""] <- NA
+summary(as.numeric(as.factor(portugal_data$Town)))
+```
+
+```{r}
+portugal_data$Type[portugal_data$Type == ""] <- NA
+summary(as.numeric(as.factor(portugal_data$Type)))
+```
+
+For EnergyCertificate instead of assigning NA to the empty values, we
+assign 'No Certificate', same for the values 'Not available' and 'NC'.
+
+```{r}
+portugal_data$EnergyCertificate[portugal_data$EnergyCertificate == ""] <- "No Certificate"
+portugal_data$EnergyCertificate[portugal_data$EnergyCertificate == "Not available"] <- "No Certificate"
+portugal_data$EnergyCertificate[portugal_data$EnergyCertificate == "NC"] <- "No Certificate"
+summary(as.numeric(as.factor(portugal_data$EnergyCertificate)))
+```
+
+```{r}
+portugal_data$Floor[portugal_data$Floor == ""] <- NA
+summary(as.numeric(as.factor(portugal_data$Floor)))
+```
+
+```{r}
+portugal_data$Lift[portugal_data$Lift == ""] <- NA
+summary(as.numeric(as.factor(portugal_data$Lift)))
+```
+
+```{r}
+portugal_data$HasParking[portugal_data$HasParking == ""] <- NA
+summary(as.numeric(as.factor(portugal_data$HasParking)))
+```
+
+```{r}
+portugal_data$PublishDate[portugal_data$PublishDate == ""] <- NA
+summary(as.numeric(as.factor(portugal_data$PublishDate)))
+```
+
+```{r}
+portugal_data$Garage[portugal_data$Garage == ""] <- NA
+summary(as.numeric(as.factor(portugal_data$Garage)))
+```
+
+```{r}
+portugal_data$Elevator[portugal_data$Elevator == ""] <- NA
+summary(as.numeric(as.factor(portugal_data$Elevator)))
+```
+
+```{r}
+portugal_data$ElectricCarsCharging[portugal_data$ElectricCarsCharging == ""] <- NA
+summary(as.numeric(as.factor(portugal_data$ElectricCarsCharging)))
+```
+
+```{r}
+portugal_data$ConservationStatus[portugal_data$ConservationStatus == ""] <- NA
+summary(as.numeric(as.factor(portugal_data$ConservationStatus)))
+```
+
+We'll convert all categorical columns to numeric in the dataset.
+
+```{r}
+portugal_data$District <- as.factor(portugal_data$District)
+portugal_data$City <- as.factor(portugal_data$City)
+portugal_data$Town <- as.factor(portugal_data$Town)
+portugal_data$Type <- as.factor(portugal_data$Type)
+portugal_data$EnergyCertificate <- as.factor(portugal_data$EnergyCertificate)
+portugal_data$Floor <- as.factor(portugal_data$Floor)
+portugal_data$Lift <- as.factor(portugal_data$Lift)
+portugal_data$HasParking <- as.factor(portugal_data$HasParking)
+portugal_data$PublishDate <- as.factor(portugal_data$PublishDate)
+portugal_data$Garage <- as.factor(portugal_data$Garage)
+portugal_data$Elevator <- as.factor(portugal_data$Elevator)
+portugal_data$ElectricCarsCharging <- as.factor(portugal_data$ElectricCarsCharging)
+portugal_data$ConservationStatus <- as.factor(portugal_data$ConservationStatus)
+
+summary(portugal_data)
+```
+
+Graph of amount of property types
+
+```{r}
+ggplot(portugal_data, aes(x = Type)) +
+  geom_bar(fill = "#69b3a2") +
+  labs(title = "Number of Properties by Type", x = "Property Type", y = "Count") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+We mainly have apartment, house and land.
+
+Next we look at missing values:
+
+```{r}
+sapply(portugal_data, function(x) sum(is.na(x)))
+sum(is.na(portugal_data))  
+```
+
+Percentage of missing values per column
+
+```{r}
+sapply(portugal_data, function(x) mean(is.na(x)) * 100)
+```
+
+```{r}
+missing_percentage <- sapply(portugal_data, function(x) mean(is.na(x)) * 100)
+
+missing_df <- data.frame(
+  Variable = names(missing_percentage),
+  MissingPercentage = missing_percentage
+)
+
+# Plot percentage of missing values
+ggplot(missing_df, aes(x = reorder(Variable, -MissingPercentage), y = MissingPercentage)) +
+  geom_bar(stat = "identity", fill = "#f46a6a") +
+  labs(title = "Percentage of Missing Values by Column", x = "Variable", y = "Percentage (%)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+If we were to remove rows with missing data, we'd end with no rows at
+all.
+
+```{r}
+portugal_data_complete_cases <- na.omit(portugal_data)
+sum(is.na(portugal_data_complete_cases))  # See the missing value now
+dim(portugal_data_complete_cases)    # Get the dimensions of the complete dataset (rows and columns)
+```
+
+We visualize the missing values per variable.
+
+```{r}
+visdat::vis_dat(portugal_data, warn_large_data = FALSE, large_data_size = 115000)
+```
+
+We detect that there are two columns that mean the same thing (Lift and
+Elevator). It seems that the rows where one column has NA, the other
+contains values, and vice versa. Therefore, we check which rows have
+matching NA values and which rows contain values in both columns.
+
+```{r}
+# Filter the ones that have NA in both rows
+na_coincidencia <- portugal_data[is.na(portugal_data$Lift) & is.na(portugal_data$Elevator), ]
+
+# Show the rows with NA in both columns
+nrow(na_coincidencia)
+```
+
+```{r}
+# Filter rows where both columns have NA
+na_coincidencia <- portugal_data[!is.na(portugal_data$Lift) & !is.na(portugal_data$Elevator), ]
+
+# Show the rows with NA in both columns
+nrow(na_coincidencia)
+```
+
+Therefore, we can see that there are 32 rows where both columns contain
+NA values and 0 rows where both contain values. We can conclude that the
+two columns have the same meaning and represent the same thing.
+Therefore, we can combine them into a single column. When we detect
+values in one column, we keep that value, but when it is an NA value, we
+will take the value from the other column.
+
+```{r}
+# Create a new combined column where we prioritize the NA value
+portugal_data <- portugal_data %>%
+  mutate(CombinedElevator = case_when(
+    !is.na(Lift) ~ as.character(Lift),
+    TRUE ~ as.character(Elevator)  # Prioritize Elevator if Lift is NA
+  ))
+
+# Convert CombinedElevator to a factor
+portugal_data$CombinedElevator <- as.factor(portugal_data$CombinedElevator)
+
+# Remove the original columns if they are no longer needed
+portugal_data <- portugal_data %>% select(-Lift, -Elevator)
+
+# Check the result
+head(portugal_data)
+```
+
+We can see a strong correlation between Parking and HasParking. For this
+reason, we will remove the HasParking column. Additionally, it is worth
+noting that HasParking is a boolean variable indicating whether parking
+is available or not, while Parking is a numeric value indicating the
+number of parking spaces available. Therefore, the HasParking column is
+unnecessary, as the presence of parking can already be determined by the
+number of spaces.
+
+```{r}
+# Deleted not needed HasParking column
+portugal_data$HasParking <- NULL
+summary(portugal_data)
+```
+
+We'll separate into the 3 biggest type of real estate, it will help us
+treating missing values and outliers, since values can differ a lot
+between a House and a Land.
+
+```{r}
+dataset_apartment <- subset(portugal_data, Type == "Apartment")
+dataset_land <- subset(portugal_data, Type == "Land")
+dataset_house <- subset(portugal_data, Type == "House")
+```
+
+We visualize the missing values by percentage for each of the types.
+
+```{r}
+missing_percentage <- sapply(dataset_apartment, function(x) mean(is.na(x)) * 100)
+
+missing_df <- data.frame(
+  Variable = names(missing_percentage),
+  MissingPercentage = missing_percentage
+)
+
+# Plot percentage of missing values
+ggplot(missing_df, aes(x = reorder(Variable, -MissingPercentage), y = MissingPercentage)) +
+  geom_bar(stat = "identity", fill = "#f46a6a") +
+  labs(title = "Percentage of Missing Values by Column Apartment", x = "Variable", y = "Percentage (%)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+missing_percentage <- sapply(dataset_apartment, function(x) mean(is.na(x)) * 100)
+
+missing_df <- data.frame(
+  Variable = names(missing_percentage),
+  MissingPercentage = missing_percentage
+)
+
+# Plot percentage of missing values
+ggplot(missing_df, aes(x = reorder(Variable, -MissingPercentage), y = MissingPercentage)) +
+  geom_bar(stat = "identity", fill = "#f46a6a") +
+  labs(title = "Percentage of Missing Values by Column Land", x = "Variable", y = "Percentage (%)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+missing_percentage <- sapply(dataset_house, function(x) mean(is.na(x)) * 100)
+
+missing_df <- data.frame(
+  Variable = names(missing_percentage),
+  MissingPercentage = missing_percentage
+)
+
+# Plot percentage of missing values
+ggplot(missing_df, aes(x = reorder(Variable, -MissingPercentage), y = MissingPercentage)) +
+  geom_bar(stat = "identity", fill = "#f46a6a") +
+  labs(title = "Percentage of Missing Values by Column Apartment", x = "Variable", y = "Percentage (%)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+We can see how the most common columns with missing values differ
+between types, meaning it's a good decision to split the dataset in 3
+different ones.
+
+For better visualization we'll show these percentages for all 3 types in
+the same table.
+
+```{r}
+# Calculate missing percentages for all three datasets
+missing_percentages <- data.frame(
+  Variable = names(dataset_apartment),
+  Apartment = sapply(dataset_apartment, function(x) mean(is.na(x)) * 100),
+  Land = sapply(dataset_land, function(x) mean(is.na(x)) * 100),
+  House = sapply(dataset_house, function(x) mean(is.na(x)) * 100)
+)
+
+# Print the summary table
+print(missing_percentages)
+
+# Highlight columns that are completely empty in one dataset but not others
+missing_percentages$CompletelyEmpty <- with(missing_percentages, 
+  ifelse(Apartment == 100 & Land < 100 & House < 100, "Apartment", 
+  ifelse(Land == 100 & Apartment < 100 & House < 100, "Land",
+  ifelse(House == 100 & Apartment < 100 & Land < 100, "House", NA)))
+)
+
+print(missing_percentages)
+```
+
+We can see that there are variables in certain datasets that no longer
+have as many NAs. For example, Floor for apartments, ConstructionYear
+for both apartments and houses, among others. However, LivingArea still
+has 71% NAs in the land dataset.
+
+Next we'll see a graph with the missing value columns of all 3 types in
+the same graph.
+
+```{r}
+# Calculate missing percentages for all three datasets
+missing_percentages <- data.frame(
+  Variable = names(dataset_apartment),
+  Apartment = sapply(dataset_apartment, function(x) mean(is.na(x)) * 100),
+  Land = sapply(dataset_land, function(x) mean(is.na(x)) * 100),
+  House = sapply(dataset_house, function(x) mean(is.na(x)) * 100)
+)
+
+# Identify columns with more than 50% missing values in any dataset
+missing_percentages$ToBeDropped <- with(missing_percentages, 
+  ifelse(Apartment > 50 | Land > 50 | House > 50, "Yes", "No")
+)
+
+# Print the summary table with missing percentages and columns to be dropped
+print(missing_percentages)
+
+# Filter only the columns that will be dropped
+columns_to_drop <- missing_percentages[missing_percentages$ToBeDropped == "Yes", ]
+print("Columns with more than 50% missing values (to be dropped):")
+print(columns_to_drop)
+
+# Optionally, visualize the columns with more than 50% missing values
+missing_percentages_long <- tidyr::pivot_longer(
+  missing_percentages,
+  cols = c(Apartment, Land, House),
+  names_to = "Dataset",
+  values_to = "MissingPercentage"
+)
+
+# Plot the missing percentages for all datasets
+ggplot(missing_percentages_long, aes(x = Variable, y = MissingPercentage, fill = Dataset)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_hline(yintercept = 50, linetype = "dashed", color = "red", size = 1) +
+  labs(
+    title = "Missing Percentage for Columns Across Types",
+    x = "Variable",
+    y = "Missing Percentage (%)",
+    fill = "Type"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Another view on the missing values.
+
+```{r}
+# Reshape the data for plotting
+missing_melt <- melt(missing_percentages, id.vars = "Variable", 
+                     measure.vars = c("Apartment", "Land", "House"),
+                     variable.name = "Dataset", value.name = "MissingPercentage")
+
+# Plot the heatmap
+ggplot(missing_melt, aes(x = Dataset, y = Variable, fill = MissingPercentage)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient(low = "white", high = "#f46a6a", na.value = "white") +
+  labs(title = "Missing Value Comparison Across Datasets", x = "Dataset", y = "Variable") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+We'll remove the columns with a higher percentage than 50 in the
+clean_dataset method.
+
+```{r}
+handle_outliers_by_type <- function(df, columns) {
+  # Remove rows with outliers for the given columns
+  df <- df %>%
+    filter(
+      # Retain rows within the bounds for all specified columns
+      rowSums(sapply(df[columns], function(.x) {
+        Q1 <- quantile(.x, 0.25, na.rm = TRUE)
+        Q3 <- quantile(.x, 0.75, na.rm = TRUE)
+        IQR <- Q3 - Q1
+        lower_bound <- pmax(0, Q1 - 1.5 * IQR)
+        upper_bound <- Q3 + 1.5 * IQR
+        # Return TRUE if the value is within the bounds
+        !(.x < lower_bound | .x > upper_bound)
+      })) == length(columns)
+    )
+
+  return(df)
+}
+
+clean_dataset <- function(data) {
+  # Handle missing values
+  missing_percentage <- colSums(is.na(data)) / nrow(data) * 100
+  columns_to_drop <- names(missing_percentage[missing_percentage > 50])
+  data <- data[, setdiff(names(data), columns_to_drop)]
+
+  # Impute missing numeric values with median
+  numeric_cols <- sapply(data, is.numeric)
+  data[, numeric_cols] <- lapply(data[, numeric_cols], function(x) {
+    ifelse(is.na(x), median(x, na.rm = TRUE), x)
+  })
+  
+  # Impute missing categorical values with the most frequent value
+  categorical_cols <- sapply(data, is.factor)
+  data[, categorical_cols] <- lapply(data[, categorical_cols], function(x) {
+    x[is.na(x)] <- names(sort(table(x), decreasing = TRUE))[1]
+    return(as.factor(x))
+  })
+  
+  # Handle outliers for numeric columns
+  columns_to_fix <- names(data)[sapply(data, is.numeric)]
+  data <- handle_outliers_by_type(data, columns_to_fix)
+  
+  return(data)
+}
+```
+
+```{r}
+dataset_apartment_test <- clean_dataset(dataset_apartment)
+
+summary(dataset_apartment_test)
+```
+
+It didn't remove all the outliers, since we have columns like TotalArea
+and LivingArea with a min of 0, which doesn't realistically make sense.
+And very low price values, because they have high values, the mean is
+very high, which causes the lower bound of 1.5\*IQR to be negative.
+
+```{r}
+# Create the histograms
+p1 <- ggplot(dataset_land, aes(x = Price)) +
+  geom_histogram(fill = "skyblue", color = "black", alpha = 0.7) +
+  labs(title = "Price Distribution", x = "Price", y = "Frequency") +
+  theme_minimal()
+
+p2 <- ggplot(dataset_land, aes(x = log(Price))) +
+  geom_histogram(binwidth = 0.1, fill = "orange", color = "black", alpha = 0.7) +
+  labs(title = "LogPrice Distribution", x = "Log(Price)", y = "Frequency") +
+  theme_minimal()
+
+# Use gridExtra to display them side by side
+library(gridExtra)
+grid.arrange(p1, p2, ncol = 2)
+```
+
+After applying the transformation we can see how it's normalized now.
+We'll check the distribution of all other variables.
+
+```{r}
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+plot_histograms_for_all_columns <- function(data) {
+  # Select only numeric columns
+  numeric_data <- data %>%
+    select(where(is.numeric))
+  
+  # Convert dataset to long format using pivot_longer
+  data_long <- numeric_data %>%
+    pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value")
+  
+  # Plot histograms for all numeric columns
+  ggplot(data_long, aes(x = Value)) +
+    geom_histogram(bins = 30, fill = "skyblue", color = "black", alpha = 0.7) +
+    facet_wrap(~ Variable, scales = "free_x", ncol = 4) +
+    theme_minimal() +
+    labs(
+      title = "Histograms of All Numeric Columns in the Dataset",
+      x = "Value",
+      y = "Frequency"
+    )
+}
+
+# Example: Plot histograms for the dataset_land
+plot_histograms_for_all_columns(dataset_land)
+```
+
+Not a single normalized one, so we'll modify the method to transform the
+variables to log before aplying IQR.
+
+```{r}
+handle_outliers_with_log <- function(df, columns) {
+  # Detect and handle outliers after transformation
+  df <- df %>%
+    filter(
+      rowSums(sapply(df[columns], function(.x) {
+        Q1 <- quantile(.x, 0.25, na.rm = TRUE)
+        Q3 <- quantile(.x, 0.75, na.rm = TRUE)
+        IQR <- Q3 - Q1
+        lower_bound <- Q1 - 1.5 * IQR
+        upper_bound <- Q3 + 1.5 * IQR
+        !(.x < lower_bound | .x > upper_bound)
+      })) == length(columns)
+    )
+  return(df)
+}
+
+clean_dataset_with_log <- function(data) {
+  # Handle missing values: Drop columns with >50% missing data
+  missing_percentage <- colSums(is.na(data)) / nrow(data) * 100
+  columns_to_drop <- names(missing_percentage[missing_percentage > 50])
+  data <- data[, setdiff(names(data), columns_to_drop)]
+
+  # Identify numeric and categorical columns
+  numeric_columns <- names(data)[sapply(data, is.numeric)]
+  categorical_columns <- names(data)[sapply(data, is.factor)]
+
+  # Impute missing numeric values with median
+  data[, numeric_columns] <- lapply(data[, numeric_columns], function(x) {
+    ifelse(is.na(x), median(x, na.rm = TRUE), x)
+  })
+
+  # Impute missing categorical values with the most frequent value
+  data[, categorical_columns] <- lapply(data[, categorical_columns], function(x) {
+    x[is.na(x)] <- names(sort(table(x), decreasing = TRUE))[1]
+    return(as.factor(x))
+  })
+
+  # Drop rows with negative values in numeric columns
+  data <- data %>%
+    filter(
+      # Keep rows where all numeric columns have non-negative values
+      !rowSums(data[, numeric_columns] < 0, na.rm = TRUE) > 0
+    )
+
+  # Add log-transformed column for Price
+  data <- data %>%
+    mutate(across(all_of(numeric_columns), ~ log(.x + 1), .names = "Log_{.col}"))
+
+  numeric_columns <- names(data)[sapply(data, is.numeric)]
+
+  # Handle outliers for numeric columns (including LogPriceXd)
+  data <- handle_outliers_with_log(data, numeric_columns)
+
+  log_columns <- paste("Log", numeric_columns, sep = "_")  # Create column names for log-transformed columns
+  data <- data[, !names(data) %in% log_columns]  # Remove log-transformed columns
+
+  return(data)
+}
+```
+
+```{r}
+dataset_apartment_cleaned <- clean_dataset_with_log(dataset_apartment)
+dataset_land_cleaned <- clean_dataset_with_log(dataset_land)
+dataset_house_cleaned <- clean_dataset_with_log(dataset_house)
+
+summary(dataset_apartment_cleaned)
+summary(dataset_land_cleaned)
+summary(dataset_house_cleaned)
+```
+
+This gave a much better result in the ones we had problems.
+
+# 3. Main Question
+
+**What characteristics should be prioritized to invest in houses in
+Portugal?**
+
+We divide the problem into 3 different but related sub questions, in
+order to structure better the problem.
+
+## First Subquestion
+
+**Which internal factors have the greatest potential for revaluation?
+What impact do additional services (parking, lift...) have on the
+investment decision?**
+
+```{r}
+# Assign factor levels to the EnergyCertificate column for apartments
+dataset_apartment_cleaned$EnergyCertificate <- factor(
+  dataset_apartment_cleaned$EnergyCertificate,
+  levels = c("No Certificate", "G", "F", "E", "D", "C", "B-", "B", "A", "A+")
+)
+
+# Assign factor levels to the EnergyCertificate column for houses
+dataset_house_cleaned$EnergyCertificate <- factor(
+  dataset_house_cleaned$EnergyCertificate,
+  levels = c("No Certificate", "G", "F", "E", "D", "C", "B-", "B", "A", "A+")
+)
+
+# Assign factor levels to the EnergyCertificate column for land
+dataset_land_cleaned$EnergyCertificate <- factor(
+  dataset_land_cleaned$EnergyCertificate,
+  levels = c("No Certificate", "G", "F", "E", "D", "C", "B-", "B", "A", "A+")
+)
+
+# Convert factors to numeric values for apartments
+processed_data <- dataset_apartment_cleaned %>%
+  mutate(across(where(is.factor), ~ as.numeric(as.factor(.))))  # Convert factors to numeric values
+
+# Select numeric columns
+all_numeric_vars <- processed_data %>% 
+  select(where(is.numeric))
+
+# Remove constant columns (zero variance)
+all_numeric_vars <- all_numeric_vars %>%
+  select(where(~ var(., na.rm = TRUE) > 0))
+
+# Calculate the correlation matrix (handling missing values)
+correlation_matrix <- cor(all_numeric_vars, use = "pairwise.complete.obs")
+
+correlation_matrix
+
+# Check that the correlation matrix does not contain NA/NaN values
+if (any(is.na(correlation_matrix))) {
+  stop("The correlation matrix contains NA/NaN. Please check the data.")
+}
+
+# Generate a heatmap for the correlation matrix
+ggcorrplot(correlation_matrix, 
+           hc.order = TRUE, 
+           type = "lower", 
+           lab = TRUE, 
+           lab_size = 2, 
+           colors = c("red", "white", "blue"),
+           title = "Correlation Matrix Apartments",
+           ggtheme = theme_minimal())
+
+# Convert factors to numeric values for houses
+processed_data <- dataset_house_cleaned %>%
+  mutate(across(where(is.factor), ~ as.numeric(as.factor(.))))  # Convert factors to numeric values
+
+# Select numeric columns
+all_numeric_vars <- processed_data %>% 
+  select(where(is.numeric))
+
+# Remove constant columns (zero variance)
+all_numeric_vars <- all_numeric_vars %>%
+  select(where(~ var(., na.rm = TRUE) > 0))
+
+# Calculate the correlation matrix (handling missing values)
+correlation_matrix <- cor(all_numeric_vars, use = "pairwise.complete.obs")
+
+correlation_matrix
+
+# Check that the correlation matrix does not contain NA/NaN values
+if (any(is.na(correlation_matrix))) {
+  stop("The correlation matrix contains NA/NaN. Please check the data.")
+}
+
+# Generate a heatmap for the correlation matrix
+ggcorrplot(correlation_matrix, 
+           hc.order = TRUE, 
+           type = "lower", 
+           lab = TRUE, 
+           lab_size = 2, 
+           colors = c("red", "white", "blue"),
+           title = "Correlation Matrix Houses",
+           ggtheme = theme_minimal())
+
+# Convert factors to numeric values for land
+processed_data <- dataset_land_cleaned %>%
+  mutate(across(where(is.factor), ~ as.numeric(as.factor(.))))  # Convert factors to numeric values
+
+# Select numeric columns
+all_numeric_vars <- processed_data %>% 
+  select(where(is.numeric))
+
+# Remove constant columns (zero variance)
+all_numeric_vars <- all_numeric_vars %>%
+  select(where(~ var(., na.rm = TRUE) > 0))
+
+# Calculate the correlation matrix (handling missing values)
+correlation_matrix <- cor(all_numeric_vars, use = "pairwise.complete.obs")
+
+correlation_matrix
+
+# Check that the correlation matrix does not contain NA/NaN values
+if (any(is.na(correlation_matrix))) {
+  stop("The correlation matrix contains NA/NaN. Please check the data.")
+}
+
+# Generate a heatmap for the correlation matrix
+ggcorrplot(correlation_matrix, 
+           hc.order = TRUE, 
+           type = "lower", 
+           lab = TRUE, 
+           lab_size = 2, 
+           colors = c("red", "white", "blue"),
+           title = "Correlation Matrix Lands",
+           ggtheme = theme_minimal())
+```
+
+Apartment, has great correlation with price: - NumberOfBathrooms
+(0.404) - CombinedElevator (0.356) - Parking (0.328) - TotalArea
+(0.310) - ConstructionYear (0.294) - LivingArea (0.286)
+
+House, has great correlation with price: - NumberOfBathrooms: 0.632 -
+EnergyCertificate: 0.530 - ConstructionYear: 0.511 - LivingArea: 0.453 -
+Parking: 0.312 - TotalRooms: 0.317 - TotalArea: 0.268
+
+Land, there are no significant correlations, so undervalued lands can be
+evaluated based on price and area, as these are the only important
+variables.
+
+With these graphs, we can demonstrate that there is a correlation
+between variables.
+
+**Apartments**
+
+```{r}
+set.seed(42)
+data <- dataset_apartment_cleaned
+
+# Relationship 1: NumberOfBathrooms (categorical) vs Price (numerical) - Boxplot
+ggplot(data, aes(x = as.factor(NumberOfBathrooms), y = Price)) +
+  geom_boxplot(fill = "blue", alpha = 0.7) +
+  ggtitle("Distribution of Price by Number of Bathrooms") +
+  xlab("Number of Bathrooms") +
+  ylab("Price")
+
+# Relationship 2: Parking (categorical) vs Price (numerical) - Boxplot
+ggplot(data, aes(x = as.factor(Parking), y = Price)) +
+  geom_boxplot(fill = "green", alpha = 0.7) +
+  ggtitle("Distribution of Price by Parking") +
+  xlab("Parking") +
+  ylab("Price")
+
+# Relationship 3: TotalArea (numerical) vs Price (numerical) - Linear Regression
+ggplot(data, aes(x = TotalArea, y = Price)) +
+  geom_point(color = "purple") +
+  geom_smooth(method = "lm", color = "red") +
+  ggtitle("Total Area vs Price") +
+  xlab("Total Area") +
+  ylab("Price")
+
+# Relationship 4: LivingArea (numerical) vs Price (numerical) - Linear Regression
+ggplot(data, aes(x = LivingArea, y = Price)) +
+  geom_point(color = "orange") +
+  geom_smooth(method = "lm", color = "red") +
+  ggtitle("Living Area vs Price") +
+  xlab("Living Area") +
+  ylab("Price")
+
+# Relationship 5: ConstructionYear (numerical) vs Price (numerical) - Linear Regression
+ggplot(data, aes(x = ConstructionYear, y = Price)) +
+  geom_point(color = "cyan") +
+  geom_smooth(method = "lm", color = "red") +
+  ggtitle("Construction Year vs Price") +
+  xlab("Construction Year") +
+  ylab("Price")
+
+# Relationship 6: CombinedElevator (categorical) vs Price (numerical) - Boxplot
+ggplot(data, aes(x = as.factor(CombinedElevator), y = Price)) +
+  geom_boxplot(fill = "pink", alpha = 0.7) +
+  ggtitle("Combined Elevator vs Price") +
+  xlab("Combined Elevator") +
+  ylab("Price")
+```
+
+**Houses**
+
+```{r}
+set.seed(42)
+data <- dataset_house_cleaned
+
+# Relationship 1: NumberOfBathrooms (categorical) vs Price (Boxplot)
+ggplot(data, aes(x = as.factor(NumberOfBathrooms), y = Price)) +
+  geom_boxplot(fill = "blue", alpha = 0.7) +
+  ggtitle("Price Distribution by Number of Bathrooms") +
+  xlab("Number of Bathrooms") +
+  ylab("Price")
+
+# Relationship 2: EnergyCertificate (categorical) vs Price (Boxplot)
+ggplot(data, aes(x = as.factor(EnergyCertificate), y = Price)) +
+  geom_boxplot(fill = "green", alpha = 0.7) +
+  ggtitle("Price Distribution by Energy Certificate") +
+  xlab("Energy Certificate") +
+  ylab("Price")
+
+# Relationship 3: ConstructionYear (numeric) vs Price (Linear Regression)
+ggplot(data, aes(x = ConstructionYear, y = Price)) +
+  geom_point(color = "purple") +
+  geom_smooth(method = "lm", color = "red") +
+  ggtitle("Construction Year vs Price") +
+  xlab("Construction Year") +
+  ylab("Price")
+
+# Relationship 4: LivingArea (numeric) vs Price (Linear Regression)
+ggplot(data, aes(x = LivingArea, y = Price)) +
+  geom_point(color = "orange") +
+  geom_smooth(method = "lm", color = "red") +
+  ggtitle("Living Area vs Price") +
+  xlab("Living Area") +
+  ylab("Price")
+
+# Relationship 5: Parking (categorical) vs Price (Boxplot)
+ggplot(data, aes(x = as.factor(Parking), y = Price)) +
+  geom_boxplot(fill = "pink", alpha = 0.7) +
+  ggtitle("Price Distribution by Parking") +
+  xlab("Parking") +
+  ylab("Price")
+
+# Relationship 6: TotalRooms (discrete numeric) vs Price (Boxplot)
+ggplot(data, aes(x = as.factor(TotalRooms), y = Price)) +
+  geom_boxplot(fill = "cyan", alpha = 0.7) +
+  ggtitle("Price Distribution by Total Rooms") +
+  xlab("Total Rooms") +
+  ylab("Price")
+
+# Relationship 7: TotalArea (numeric) vs Price (Linear Regression)
+ggplot(data, aes(x = TotalArea, y = Price)) +
+  geom_point(color = "darkgreen") +
+  geom_smooth(method = "lm", color = "red") +
+  ggtitle("Total Area vs Price") +
+  xlab("Total Area") +
+  ylab("Price")
+```
+
+**Lands**
+
+```{r}
+set.seed(42)
+data <- dataset_land_cleaned
+
+# Relationship 1: EnergyCertificate (categorical) vs Price (Boxplot)
+ggplot(data, aes(x = EnergyCertificate, y = Price)) +
+  geom_boxplot(fill = "purple", alpha = 0.7) +
+  ggtitle("Price Distribution by Energy Certificate") +
+  xlab("Energy Certificate") +
+  ylab("Price")
+
+# Relationship 2: TotalArea (numeric) vs Price (Linear Regression)
+ggplot(data, aes(x = TotalArea, y = Price)) +
+  geom_point(color = "cyan") +
+  geom_smooth(method = "lm", color = "red") +
+  ggtitle("Total Area vs Price") +
+  xlab("Total Area") +
+  ylab("Price")
+
+# Relationship 3: CombinedElevator (numeric) vs Price (Linear Regression)
+ggplot(data, aes(x = as.factor(CombinedElevator), y = Price)) +
+  geom_boxplot(fill = "pink", alpha = 0.7) +
+  ggtitle("Combined Elevator vs Price") +
+  xlab("Combined Elevator") +
+  ylab("Price")
+```
+
+We can see how Land has almost no correlation with any variable.
+
+In the second section, the characteristics of homes with a high price
+will be estimated, and a search will be made for those homes with
+similar properties and a lower price.
+
+## Second Subquestion
+
+**What are the common characteristics of homes with high prices? How can
+we identify similar residences that are undervalued?**
+
+### First Method
+
+**Apartments**
+
+For the previous study, we know that the characteristics most related to
+the price of apartments are:
+
+Apartment, high correlation with the price: - NumberOfBathrooms
+(0.404) - CombinedElevator (0.356) - Parking (0.328) - TotalArea
+(0.310) - ConstructionYear (0.294) - LivingArea (0.286)
+
+```{r}
+# 2. Initial Predictive Model
+price_model <- lm(Price ~ TotalArea + LivingArea + Parking + 
+                  ConstructionYear + NumberOfBathrooms + CombinedElevator,
+                  data = dataset_apartment_cleaned)
+
+# 3. Prediction and residuals calculation
+dataset_apartment_cleaned <- dataset_apartment_cleaned %>%
+  mutate(
+    Predicted_Price = predict(price_model, dataset_apartment_cleaned),
+    Predicted_Error = residuals(price_model), # Model errors
+    Lower_Bound = Predicted_Price - 1.96 * sd(Predicted_Error), # Lower bound
+    Upper_Bound = Predicted_Price + 1.96 * sd(Predicted_Error)  # Upper bound
+  )
+
+# 4. Refine undervalued definition with confidence intervals
+dataset_apartment_cleaned <- dataset_apartment_cleaned %>%
+  mutate(
+    Price_Category = case_when(
+      Price < Lower_Bound ~ "Undervalued",
+      Price > Upper_Bound ~ "Overvalued",
+      TRUE ~ "Fairly Valued"
+    )
+  )
+
+# 5. Compare actual and predicted prices with ratios
+dataset_apartment_cleaned <- dataset_apartment_cleaned %>%
+  mutate(
+    Price_Ratio = Price / Predicted_Price,
+    Refined_Price_Category = case_when(
+      Price_Ratio < 0.8 ~ "Undervalued",
+      Price_Ratio > 1.2 ~ "Overvalued",
+      TRUE ~ "Fairly Valued"
+    )
+  )
+
+# 6. Clustering analysis by similar characteristics
+cluster_data <- dataset_apartment_cleaned %>%
+  select(TotalArea, LivingArea, TotalRooms, NumberOfBathrooms, ConstructionYear, Parking) %>%
+  scale()
+
+set.seed(123)
+kmeans_result <- kmeans(cluster_data, centers = 4)
+
+# Add clusters to the main dataset
+dataset_apartment_cleaned <- dataset_apartment_cleaned %>%
+  mutate(Cluster = kmeans_result$cluster)
+
+# Calculate average prices by cluster
+cluster_summary <- dataset_apartment_cleaned %>%
+  group_by(Cluster) %>%
+  summarise(
+    Avg_Price = mean(Price, na.rm = TRUE),
+    Avg_Predicted = mean(Predicted_Price, na.rm = TRUE)
+  )
+
+# Ensure the join is correct
+dataset_apartment_cleaned <- dataset_apartment_cleaned %>%
+  left_join(cluster_summary, by = "Cluster")
+
+# Validate that necessary columns are present
+if (!"Avg_Price" %in% names(dataset_apartment_cleaned)) {
+  stop("Error: 'Avg_Price' was not correctly added to the main dataset.")
+}
+
+# Identify undervalued apartments by cluster
+dataset_apartment_cleaned <- dataset_apartment_cleaned %>%
+  mutate(
+    Cluster_Price_Category = case_when(
+      Price < 0.8 * Avg_Price ~ "Undervalued",
+      Price > 1.2 * Avg_Price ~ "Overvalued",
+      TRUE ~ "Fairly Valued"
+    )
+  )
+
+# 7. Visualizations
+# Bar plot of the distribution of categories
+# Proportion of categories within each cluster
+dataset_apartment_cleaned %>%
+  group_by(Cluster, Cluster_Price_Category) %>%
+  summarise(Count = n()) %>%
+  mutate(Percentage = Count / sum(Count) * 100) %>%
+  ggplot(aes(x = as.factor(Cluster), y = Percentage, fill = Cluster_Price_Category)) +
+  geom_bar(stat = "identity", position = "fill") +
+  ggtitle("Proportion of Categories by Cluster") +
+  xlab("Cluster") +
+  ylab("Proportion (%)") +
+  theme_minimal() +
+  scale_fill_manual(values = c("blue", "red", "green"))
+
+
+ggplot(dataset_apartment_cleaned, aes(x = Price_Ratio, fill = Refined_Price_Category)) +
+  geom_histogram(binwidth = 0.05, alpha = 0.7) +
+  ggtitle("Distribution of Price Ratios by Category") +
+  theme_minimal()
+
+ggplot(dataset_apartment_cleaned, aes(x = Cluster, y = Price, color = Cluster_Price_Category)) +
+  geom_boxplot() +
+  ggtitle("Price Categories by Cluster") +
+  theme_minimal()
+
+ggplot(dataset_apartment_cleaned, aes(x = TotalArea, y = Price - Predicted_Price, color = Price_Category)) +
+  geom_point(alpha = 0.7) +
+  ggtitle("Refined Price Categories with Confidence Intervals") +
+  theme_minimal()
+
+ggplot(dataset_apartment_cleaned, aes(x = as.numeric(CombinedElevator), y = Price - Predicted_Price, color = Price_Category)) +
+  geom_boxplot() +
+  ggtitle("Elevator Availability vs Price Difference") +
+  theme_minimal()
+
+# 8. Final summary of results
+summary_stats <- dataset_apartment_cleaned %>%
+  group_by(Cluster_Price_Category) %>%
+  summarise(
+    Avg_TotalArea = mean(TotalArea, na.rm = TRUE),
+    Avg_LivingArea = mean(LivingArea, na.rm = TRUE),
+    Avg_TotalRooms = mean(TotalRooms, na.rm = TRUE),
+    Avg_NumberOfBathrooms = mean(NumberOfBathrooms, na.rm = TRUE),
+    Avg_ConstructionYear = mean(ConstructionYear, na.rm = TRUE),
+    Avg_Parking = mean(Parking, na.rm = TRUE),
+    Count = n()
+  )
+
+print(summary_stats)
+```
+
+**Interpretation of Results**
+
+1.  **Correlation Matrix**
+
+-   TotalArea and LivingArea have a high correlation with price (Price),
+    confirming that the size of the apartment is one of the most
+    influential factors.
+-   NumberOfBathrooms and ConstructionYear also show a positive
+    correlation, indicating that newer apartments with more bathrooms
+    tend to be more expensive.
+-   Parking has a low but positive correlation, suggesting it adds value
+    but is not as decisive as area or age.
+
+2.  **Distribution of Ratios (Actual Price / Predicted)**
+
+-   The Undervalued category appears in the lowest ratio range (\< 0.8).
+-   Overvalued apartments are concentrated in ratios above 1.2.
+-   The majority of apartments are Fairly Valued, with ratios close to
+    1.  
+
+3.  **Categories by Cluster**
+
+-   Clusters help group apartments with similar characteristics (such as
+    area, number of rooms and bathrooms, etc.).
+-   Undervalued apartments appear in clusters with lower average prices,
+    indicating they have similar characteristics to others in the group,
+    but their actual price is much lower.
+
+4.  **Refining Categories with Confidence Intervals**
+
+-   The blue points (Undervalued) in the "Refined Price Categories with
+    Confidence Intervals" graph are concentrated at the lower end,
+    showing that undervalued apartments have a significantly lower
+    actual price than expected.
+-   The majority of apartments are fairly valued (Fairly Valued), and
+    overvalued apartments (Overvalued) appear scattered at the upper
+    end.
+
+5.  **Impact of Elevators on Price**
+
+-   Apartments with elevators (CombinedElevator) tend to be more highly
+    valued or overvalued.
+-   Apartments without elevators are more likely to be undervalued.
+
+6.  **Summary by Category (Table)**
+
+-   **Overvalued:** Apartments with more area, more bathrooms, and built
+    more recently (average year: 2001).
+-   **Fairly Valued:** Balanced area and characteristics compared to
+    other categories.
+-   **Undervalued:** Apartments with slightly smaller total and living
+    area and an average construction year lower (1998).
+
+------------------------------------------------------------------------
+
+**Conclusions (so far)**
+
+**Factors Determining High Prices:**
+
+-   Larger total and living area.
+-   More bathrooms and modern features.
+-   Elevator and parking availability.
+
+**Identification of Undervalued Apartments:**
+
+-   Lower ratio between actual and predicted price (ratios \< 0.8).
+-   Apartments in clusters with lower average prices.
+-   Absence of elevator and less modern features.
+
+**Key Differentiators:**
+
+-   Construction year (newer apartments have higher prices).
+-   Total number of bathrooms and living area.
+
+**Lands**
+
+We found no significant correlations between the available variables and
+the price of lands. Therefore, for the analysis, we will focus on the
+most relevant variables: **TotalArea** (the size of the land) and
+**City** (location), as these are likely to have the greatest impact on
+price based on domain knowledge.
+
+The process is going to be similar than in the study with
+apartments.But, as we have no correlations with price, we will use a
+non-linear model. In the following process we are looking for the best
+one.
+
+```{r}
+# Convert 'City' variable into numeric to treat it as a categorical variable
+dataset_land_cleaned <- dataset_land_cleaned %>%
+  mutate(City = as.numeric(as.factor(City)))  # Ensure City is a categorical variable
+```
+
+We fit three different types of models:
+
+-   **Polynomial Model**: A polynomial regression model that can capture
+    non-linear relationships.
+-   **Exponential Model**: A model that assumes an exponential
+    relationship by using the log of the target variable (Price).
+-   **Power Model**: A model using a power transformation
+    (TotalArea\^0.5) to capture potential non-linearities in TotalArea.
+
+```{r}
+# Fit a Polynomial model
+price_model_poly <- lm(Price ~ poly(TotalArea, 2) + poly(City, 2), data = dataset_land_cleaned)
+
+# Fit an Exponential model by taking the log of the Price
+price_model_expo <- lm(log(Price) ~ TotalArea + City, data = dataset_land_cleaned)
+
+# Fit a Power model by applying a power transformation to TotalArea
+price_model_power <- lm(Price ~ I(TotalArea^0.5) + City, data = dataset_land_cleaned)
+```
+
+After fitting the models, we evaluate their performance using two
+metrics:
+
+-   **R-squared (R²)**: This indicates the proportion of variance
+    explained by the model. Higher R² values indicate a better fit.
+
+-   **Root Mean Square Error (RMSE)**: This measures the average
+    deviation between the predicted and actual values. Lower RMSE
+    indicates a better fit.
+
+```{r}
+# Evaluate performance for each model using R-squared and RMSE
+
+# 3.1. Polynomial Model
+dataset_land_cleaned <- dataset_land_cleaned %>%
+  mutate(Predicted_Price_Poly = predict(price_model_poly, dataset_land_cleaned))
+
+R2_poly <- summary(price_model_poly)$r.squared  # R-squared for the polynomial model
+RMSE_poly <- sqrt(mean((dataset_land_cleaned$Price - dataset_land_cleaned$Predicted_Price_Poly)^2))  # RMSE for polynomial model
+
+# 3.2. Exponential Model
+dataset_land_cleaned <- dataset_land_cleaned %>%
+  mutate(Predicted_Price_Expo = exp(predict(price_model_expo, dataset_land_cleaned)))
+
+R2_expo <- summary(price_model_expo)$r.squared  # R-squared for the exponential model
+RMSE_expo <- sqrt(mean((dataset_land_cleaned$Price - dataset_land_cleaned$Predicted_Price_Expo)^2))  # RMSE for exponential model
+
+# 3.3. Power Model
+dataset_land_cleaned <- dataset_land_cleaned %>%
+  mutate(Predicted_Price_Power = predict(price_model_power, dataset_land_cleaned))
+
+R2_power <- summary(price_model_power)$r.squared  # R-squared for the power model
+RMSE_power <- sqrt(mean((dataset_land_cleaned$Price - dataset_land_cleaned$Predicted_Price_Power)^2))  # RMSE for power model
+```
+
+A comparison table is created to assess which model performs the best.
+The models are ranked based on R² and RMSE, with the highest R² and
+lowest RMSE indicating the best fit.
+
+```{r}
+# Create a summary table to compare R-squared and RMSE for each model
+model_comparison <- data.frame(
+  Model = c("Polynomial", "Exponential", "Power"),
+  R2 = c(R2_poly, R2_expo, R2_power),
+  RMSE = c(RMSE_poly, RMSE_expo, RMSE_power)
+)
+
+# Print model comparison
+print(model_comparison)
+
+# The best model is selected based on the highest R-squared and lowest RMSE
+best_model <- model_comparison %>%
+  arrange(desc(R2), RMSE) %>%
+  slice(1)  # Select the top model based on the criteria
+
+# Print the name of the best model
+print(paste("The best model is:", best_model$Model))
+```
+
+The best model is selected based on the highest R² and the lowest RMSE.
+This model is **Exponential**.
+
+```{r}
+summary(dataset_land_cleaned)
+```
+
+```{r}
+# 1. Convert 'City' to a categorical variable (One-Hot Encoding)
+dataset_land_cleaned <- dataset_land_cleaned %>%
+  mutate(City = as.numeric(as.factor(City)))  # Ensure 'City' is treated as a categorical variable
+
+summary(dataset_land_cleaned)
+
+# 2. Exponential Predictive Model
+# Using 'TotalArea' and 'City' as predictors, with the log-transformed 'Price' for the exponential model
+price_model_expo <- lm(log(Price) ~ TotalArea + City, data = dataset_land_cleaned)
+
+# 3. Prediction and residual calculation
+dataset_land_cleaned <- dataset_land_cleaned %>%
+  mutate(
+    Predicted_Price = exp(predict(price_model_expo, dataset_land_cleaned)),  # Applying exp to get predicted price
+    Predicted_Error = Price - Predicted_Price, # Residuals (difference between actual and predicted price)
+    Lower_Bound = Predicted_Price - 1.96 * sd(Predicted_Error), # Lower bound for confidence intervals
+    Upper_Bound = Predicted_Price + 1.96 * sd(Predicted_Error)  # Upper bound for confidence intervals
+  )
+
+# 4. Refine undervaluation definition using confidence intervals
+dataset_land_cleaned <- dataset_land_cleaned %>%
+  mutate(
+    Price_Category = case_when(
+      Price < Lower_Bound ~ "Undervalued",
+      Price > Upper_Bound ~ "Overvalued",
+      TRUE ~ "Fairly Valued"
+    )
+  )
+
+# 5. Compare actual and predicted prices using ratios
+dataset_land_cleaned <- dataset_land_cleaned %>%
+  mutate(
+    Price_Ratio = Price / Predicted_Price,
+    Refined_Price_Category = case_when(
+      Price_Ratio < 0.8 ~ "Undervalued",
+      Price_Ratio > 1.2 ~ "Overvalued",
+      TRUE ~ "Fairly Valued"
+    )
+  )
+
+# 6. Clustering analysis by similar characteristics
+cluster_data <- dataset_land_cleaned %>%
+  select(TotalArea, City) %>%
+  scale()  # Standardize data before clustering
+
+set.seed(123)
+kmeans_result <- kmeans(cluster_data, centers = 4)
+
+# Add clusters to the main dataset
+dataset_land_cleaned <- dataset_land_cleaned %>%
+  mutate(Cluster = kmeans_result$cluster)
+
+# Calculate average prices by cluster
+cluster_summary <- dataset_land_cleaned %>%
+  group_by(Cluster) %>%
+  summarise(
+    Avg_Price = mean(Price, na.rm = TRUE),
+    Avg_Predicted = mean(Predicted_Price, na.rm = TRUE)
+  )
+
+# Ensure correct merging of summary with the main dataset
+dataset_land_cleaned <- dataset_land_cleaned %>%
+  left_join(cluster_summary, by = "Cluster")
+
+# Validate that the necessary columns are present
+if (!"Avg_Price" %in% names(dataset_land_cleaned)) {
+  stop("Error: 'Avg_Price' was not correctly added to the main dataset.")
+}
+
+# Identify undervalued apartments by cluster
+dataset_land_cleaned <- dataset_land_cleaned %>%
+  mutate(
+    Cluster_Price_Category = case_when(
+      Price < 0.8 * Avg_Price ~ "Undervalued",
+      Price > 1.2 * Avg_Price ~ "Overvalued",
+      TRUE ~ "Fairly Valued"
+    )
+  )
+
+# 7. Visualizations
+# Bar plot for distribution of categories by cluster
+dataset_land_cleaned %>%
+  group_by(Cluster, Cluster_Price_Category) %>%
+  summarise(Count = n()) %>%
+  mutate(Percentage = Count / sum(Count) * 100) %>%
+  ggplot(aes(x = as.factor(Cluster), y = Percentage, fill = Cluster_Price_Category)) +
+  geom_bar(stat = "identity", position = "fill") +
+  ggtitle("Proportion of Categories by Cluster") +
+  xlab("Cluster") +
+  ylab("Proportion (%)") +
+  theme_minimal() +
+  scale_fill_manual(values = c("blue", "red", "green"))
+
+ggplot(dataset_land_cleaned, aes(x = Price_Ratio, fill = Refined_Price_Category)) +
+  geom_histogram(binwidth = 0.05, alpha = 0.7) +
+  ggtitle("Distribution of Price Ratios by Category") +
+  theme_minimal()
+
+ggplot(dataset_land_cleaned, aes(x = Cluster, y = Price, color = Cluster_Price_Category)) +
+  geom_boxplot() +
+  ggtitle("Price Categories by Cluster") +
+  theme_minimal()
+
+ggplot(dataset_land_cleaned, aes(x = TotalArea, y = Price - Predicted_Price, color = Price_Category)) +
+  geom_point(alpha = 0.7) +
+  ggtitle("Refined Price Categories with Confidence Intervals") +
+  theme_minimal()
+
+ggplot(dataset_land_cleaned, aes(x = as.numeric(City), y = Price - Predicted_Price, color = Price_Category)) +
+  geom_boxplot() +
+  ggtitle("City vs Price Difference") +
+  theme_minimal()
+
+# 8. Final summary of results
+summary_stats <- dataset_land_cleaned %>%
+  group_by(Cluster_Price_Category) %>%
+  summarise(
+    Avg_TotalArea = mean(TotalArea, na.rm = TRUE),
+    Avg_City = mean(City, na.rm = TRUE),
+    Count = n()
+  )
+
+print(summary_stats)
+```
+
+**Houses**
+
+The same proces as before is going to be used. The variables with higher
+correlation with price are:
+
+-   NumberOfBathrooms (0.63)
+-   EnergyCertificate (0.53)
+-   ConstructionYear (0.51)
+-   LivingArea (0.45)
+
+```{r}
+summary(dataset_house_cleaned)
+```
+
+```{r}
+# 1. Transform EnergyCertificate to numeric.
+dataset_house_cleaned <- dataset_house_cleaned %>%
+  mutate(EnergyCertificate = as.numeric(EnergyCertificate))
+
+# Transform Price using natural logarithm
+dataset_house_cleaned <- dataset_house_cleaned %>%
+  mutate(Log_Price = log(Price))
+
+# Fit the model with the transformed variable
+price_model <- lm(Log_Price ~ NumberOfBathrooms + LivingArea + 
+                  ConstructionYear + EnergyCertificate,
+                  data = dataset_house_cleaned)
+
+# 3. Prediction and calculation of residuals
+dataset_house_cleaned <- dataset_house_cleaned %>%
+  mutate(
+    Predicted_Price = predict(price_model, dataset_house_cleaned),
+    Predicted_Error = residuals(price_model), # Model errors
+    Lower_Bound = Predicted_Price - 1.96 * sd(Predicted_Error), # Lower bound
+    Upper_Bound = Predicted_Price + 1.96 * sd(Predicted_Error)  # Upper bound
+  )
+
+# 4. Refine definition of undervalued with confidence intervals
+dataset_house_cleaned <- dataset_house_cleaned %>%
+  mutate(
+    Price_Category = case_when(
+      Log_Price < Lower_Bound ~ "Undervalued",
+      Log_Price > Upper_Bound ~ "Overvalued",
+      TRUE ~ "Fairly Valued"
+    )
+  )
+
+# 5. Compare actual and predicted prices with ratios
+dataset_house_cleaned <- dataset_house_cleaned %>%
+  mutate(
+    Price_Ratio = Log_Price / Predicted_Price,
+    Refined_Price_Category = case_when(
+      Price_Ratio < 0.95 ~ "Undervalued",
+      Price_Ratio > 1.05 ~ "Overvalued",
+      TRUE ~ "Fairly Valued"
+    )
+  )
+```
+
+```{r}
+# Filter records with Price less than 0
+negative_price_samples <- dataset_house_cleaned %>%
+  filter(Predicted_Price < 0)
+
+# Print the filtered records
+print(negative_price_samples)
+
+# Optional: Check how many records meet this condition
+cat("Number of records with Price < 0:", nrow(negative_price_samples), "\n")
+```
+
+```{r}
+# 6. Clustering analysis by similar characteristics
+cluster_data <- dataset_house_cleaned %>%
+  select(LivingArea, EnergyCertificate, NumberOfBathrooms, ConstructionYear) %>%
+  scale()
+
+set.seed(123)
+kmeans_result <- kmeans(cluster_data, centers = 4)
+
+# Add the clusters to the main dataset
+dataset_house_cleaned <- dataset_house_cleaned %>%
+  mutate(Cluster = kmeans_result$cluster)
+
+# Calculate average prices by cluster
+cluster_summary <- dataset_house_cleaned %>%
+  group_by(Cluster) %>%
+  summarise(
+    Avg_Price = mean(Log_Price, na.rm = TRUE),
+    Avg_Predicted = mean(Predicted_Price, na.rm = TRUE)
+  )
+
+# Ensure the join is correct
+dataset_house_cleaned <- dataset_house_cleaned %>%
+  left_join(cluster_summary, by = "Cluster")
+
+# Validate that the necessary columns are present
+if (!"Avg_Price" %in% names(dataset_house_cleaned)) {
+  stop("Error: 'Avg_Price' was not correctly added to the main dataset.")
+}
+
+# Identify undervalued houses by cluster
+dataset_house_cleaned <- dataset_house_cleaned %>%
+  mutate(
+    Cluster_Price_Category = case_when(
+      Log_Price < 0.95 * Avg_Price ~ "Undervalued",
+      Log_Price > 1.05 * Avg_Price ~ "Overvalued",
+      TRUE ~ "Fairly Valued"
+    )
+  )
+
+# 7. Visualizations
+# Bar chart of the distribution of categories
+# Proportion of categories within each cluster
+dataset_house_cleaned %>%
+  group_by(Cluster, Cluster_Price_Category) %>%
+  summarise(Count = n()) %>%
+  mutate(Percentage = Count / sum(Count) * 100) %>%
+  ggplot(aes(x = as.factor(Cluster), y = Percentage, fill = Cluster_Price_Category)) +
+  geom_bar(stat = "identity", position = "fill") +
+  ggtitle("Proportion of Categories by Cluster") +
+  xlab("Cluster") +
+  ylab("Proportion (%)") +
+  theme_minimal() +
+  scale_fill_manual(values = c("blue", "red", "green"))
+```
+
+```{r}
+ggplot(dataset_house_cleaned, aes(x = Price_Ratio, fill = Refined_Price_Category)) +
+  geom_histogram(binwidth = 0.05, alpha = 0.7) +
+  ggtitle("Distribution of Price Ratios by Category") +
+  theme_minimal()
+
+ggplot(dataset_house_cleaned, aes(x = Cluster, y = Log_Price, color = Cluster_Price_Category)) +
+  geom_boxplot() +
+  ggtitle("Price Categories by Cluster") +
+  theme_minimal()
+
+ggplot(dataset_house_cleaned, aes(x = TotalArea, y = Log_Price - Predicted_Price, color = Price_Category)) +
+  geom_point(alpha = 0.7) +
+  ggtitle("Refined Price Categories with Confidence Intervals") +
+  theme_minimal()
+
+ggplot(dataset_house_cleaned, aes(x = as.numeric(NumberOfBathrooms), y = Log_Price - Predicted_Price, color = Price_Category)) +
+  geom_boxplot() +
+  ggtitle("Number of Bathrooms vs Price Difference") +
+  theme_minimal()
+```
+
+```{r}
+# 8. Summary of final results
+summary_stats <- dataset_house_cleaned %>%
+  group_by(Cluster_Price_Category) %>%
+  summarise(
+    Avg_TotalArea = mean(TotalArea, na.rm = TRUE),
+    Avg_EnergyCertificate = mean(EnergyCertificate, na.rm = TRUE),
+    Avg_NumberOfBathrooms = mean(NumberOfBathrooms, na.rm = TRUE),
+    Avg_ConstructionYear = mean(ConstructionYear, na.rm = TRUE),
+    Count = n()
+  )
+
+print(summary_stats)
+```
+
+### Second Method
+
+Now we are going to make another process to find overvalued and
+undervalued properties.
+
+This process identifies overvalued and undervalued properties by
+clustering them based on their more influent characteristics (excluding
+price) and then comparing prices within each cluster. Here's what
+happens:
+
+1.  Clustering Without Price: Properties are grouped into clusters using
+    the attributes that hace more correlation with price in each
+    dataset. Price is not included in clustering to avoid bias.
+
+2.  Price-Based Classification: For each cluster, the average price is
+    calculated. Properties with prices:
+
+-   Below 80% of the cluster average are labeled undervalued.
+-   Above 120% of the cluster average are labeled overvalued.
+-   Within 80%-120% are labeled fairly valued.
+
+3.  Visualizations: Charts display the proportion of categories
+    (undervalued, overvalued, fairly valued) and the price distribution
+    within each cluster.
+
+This approach separates grouping properties by features from evaluating
+their prices, providing an unbiased perspective on valuation.
+
+**Apartments**
+
+```{r}
+# 1. Prepare data for clustering (excluding price)
+cluster_data <- dataset_apartment_cleaned %>%
+  select(TotalArea, LivingArea, TotalRooms, NumberOfBathrooms, ConstructionYear, Parking) %>%
+  scale() # Scale the data for clustering
+
+# 2. Perform k-means clustering
+set.seed(123)
+kmeans_result <- kmeans(cluster_data, centers = 4) # Use 4 clusters (adjust as needed)
+
+# Add cluster assignments to the dataset
+dataset_apartment_cleaned <- dataset_apartment_cleaned %>%
+  mutate(Cluster = kmeans_result$cluster)
+
+# 3. Calculate average price and classify properties within each cluster
+dataset_apartment_cleaned <- dataset_apartment_cleaned %>%
+  group_by(Cluster) %>%
+  mutate(
+    Avg_Price_Cluster = mean(Price, na.rm = TRUE),
+    Price_Category_Cluster = case_when(
+      Price < 0.8 * Avg_Price_Cluster ~ "Undervalued",  # Less than 80% of the cluster average
+      Price > 1.2 * Avg_Price_Cluster ~ "Overvalued",  # Greater than 120% of the cluster average
+      TRUE ~ "Fairly Valued"  # Within 80%-120% of the cluster average
+    )
+  ) %>%
+  ungroup() # Ungroup after processing
+
+# 4. Summarize results: Count of categories within each cluster
+cluster_summary <- dataset_apartment_cleaned %>%
+  group_by(Cluster, Price_Category_Cluster) %>%
+  summarise(Count = n(), .groups = "drop")
+
+# Print the cluster summary
+print(cluster_summary)
+
+# 5. Visualizations
+# Proportion of categories within each cluster
+ggplot(cluster_summary, aes(x = as.factor(Cluster), y = Count, fill = Price_Category_Cluster)) +
+  geom_bar(stat = "identity", position = "fill") +
+  ggtitle("Proportion of Price Categories Within Each Cluster") +
+  xlab("Cluster") +
+  ylab("Proportion") +
+  theme_minimal() +
+  scale_fill_manual(values = c("blue", "red", "green"))
+
+# Boxplot of prices within each cluster
+ggplot(dataset_apartment_cleaned, aes(x = as.factor(Cluster), y = Price, color = Price_Category_Cluster)) +
+  geom_boxplot() +
+  ggtitle("Price Distribution Within Each Cluster") +
+  xlab("Cluster") +
+  ylab("Price") +
+  theme_minimal()
+
+```
+
+The third cluster stands out as the most interesting because it shows a
+balanced distribution of undervalued, fairly valued, and overvalued
+properties. Additionally, as shown in the second plot, this cluster has
+a higher number of undervalued properties and a greater quantity of
+low-priced homes compared to the average for this cluster.
+
+```{r}
+# Filter for undervalued houses in the third cluster
+undervalued_cluster_3 <- dataset_apartment_cleaned %>%
+  filter(Cluster == 3, Price_Category_Cluster == "Undervalued")
+
+# Summarize common characteristics
+summary_undervalued_cluster_3 <- undervalued_cluster_3 %>%
+  summarise(
+    Avg_TotalArea = mean(TotalArea, na.rm = TRUE),
+    Median_TotalArea = median(TotalArea, na.rm = TRUE),
+    Avg_LivingArea = mean(LivingArea, na.rm = TRUE),
+    Median_LivingArea = median(LivingArea, na.rm = TRUE),
+    Avg_TotalRooms = mean(TotalRooms, na.rm = TRUE),
+    Median_TotalRooms = median(TotalRooms, na.rm = TRUE),
+    Avg_NumberOfBathrooms = mean(NumberOfBathrooms, na.rm = TRUE),
+    Median_NumberOfBathrooms = median(NumberOfBathrooms, na.rm = TRUE),
+    Avg_ConstructionYear = mean(ConstructionYear, na.rm = TRUE),
+    Median_ConstructionYear = median(ConstructionYear, na.rm = TRUE),
+    Avg_Parking = mean(Parking, na.rm = TRUE),
+    Median_Parking = median(Parking, na.rm = TRUE)
+  )
+
+# Print the summary
+print(summary_undervalued_cluster_3)
+
+# Print a few undervalued samples from this cluster
+cat("\nSome undervalued properties in Cluster 3:\n")
+print(head(undervalued_cluster_3, 50))  # Adjust the number of rows to display as needed
+
+```
+
+**Lands**
+
+```{r}
+# 1. Transform City and District to numeric without removing the original columns
+dataset_land_cleaned <- dataset_land_cleaned %>%
+  mutate(
+    CityNum = as.numeric(City),  # Convert cities to numeric
+    DistrictNum = as.numeric(District)  # Convert districts to numeric
+  )
+
+# 2. Prepare data for clustering (excluding price)
+cluster_data <- dataset_land_cleaned %>%
+  select(TotalArea, DistrictNum, CityNum) %>%
+  scale() # Scale the data for clustering
+
+# 3. Perform k-means clustering
+set.seed(123)
+kmeans_result <- kmeans(cluster_data, centers = 4)  # Use 4 clusters, you can adjust the number
+
+# 4. Add cluster assignments to the dataset
+dataset_land_cleaned <- dataset_land_cleaned %>%
+  mutate(Cluster = kmeans_result$cluster)
+
+# 5. Calculate average price and classify properties within each cluster
+dataset_land_cleaned <- dataset_land_cleaned %>%
+  group_by(Cluster) %>%
+  mutate(
+    Avg_Price_Cluster = mean(Price, na.rm = TRUE),
+    Price_Category_Cluster = case_when(
+      Price < 0.8 * Avg_Price_Cluster ~ "Undervalued",  # Less than 80% of the cluster average
+      Price > 1.2 * Avg_Price_Cluster ~ "Overvalued",  # More than 120% of the cluster average
+      TRUE ~ "Fairly Valued"  # Within 80%-120% of the cluster average
+    )
+  ) %>%
+  ungroup()  # Ungroup after processing
+
+# 6. Summarize results: Count of categories within each cluster
+cluster_summary <- dataset_land_cleaned %>%
+  group_by(Cluster, Price_Category_Cluster) %>%
+  summarise(Count = n(), .groups = "drop")
+
+# Print the cluster summary
+print(cluster_summary)
+
+# 7. Visualization: Proportion of categories within each cluster
+ggplot(cluster_summary, aes(x = as.factor(Cluster), y = Count, fill = Price_Category_Cluster)) +
+  geom_bar(stat = "identity", position = "fill") +
+  ggtitle("Proportion of Price Categories Within Each Cluster") +
+  xlab("Cluster") +
+  ylab("Proportion") +
+  theme_minimal() +
+  scale_fill_manual(values = c("blue", "red", "green"))
+
+# 8. Boxplot of prices within each cluster
+ggplot(dataset_land_cleaned, aes(x = as.factor(Cluster), y = Price, color = Price_Category_Cluster)) +
+  geom_boxplot() +
+  ggtitle("Price Distribution Within Each Cluster") +
+  xlab("Cluster") +
+  ylab("Price") +
+  theme_minimal()
+```
+
+Although all the clusters are quite similar, the second cluster stands
+out the most. It shows a balanced distribution of undervalued, fairly
+valued, and overvalued properties. Additionally, as shown in the second
+plot, this cluster has a higher number of undervalued properties and a
+greater quantity of low-priced homes compared to the average for this
+cluster.
+
+```{r}
+# 9. Filter undervalued properties in the second cluster
+undervalued_cluster_2 <- dataset_land_cleaned %>%
+  filter(Cluster == 2, Price_Category_Cluster == "Undervalued")
+
+# 10. Summarize common characteristics of undervalued properties
+summary_undervalued_cluster_2 <- undervalued_cluster_2 %>%
+  summarise(
+    Avg_TotalArea = mean(TotalArea, na.rm = TRUE),
+    Median_TotalArea = median(TotalArea, na.rm = TRUE),
+    Avg_District = mean(DistrictNum, na.rm = TRUE),
+    Median_District = median(DistrictNum, na.rm = TRUE),
+    Avg_City = mean(CityNum, na.rm = TRUE),
+    Median_City = median(CityNum, na.rm = TRUE)
+  )
+
+# Print the summary
+print(summary_undervalued_cluster_2)
+
+# 11. Print some undervalued properties from cluster 2
+cat("\nSome undervalued properties in Cluster 2:\n")
+print(head(undervalued_cluster_2, 50))  # Adjust the number of rows to display as needed
+
+```
+
+**House**
+
+```{r}
+# 1. Transformamos EnergyCertificate a numerico.
+dataset_house_cleaned <- dataset_house_cleaned %>%
+  mutate(EnergyCertificate = as.numeric(EnergyCertificate))
+
+# 1. Prepare data for clustering (excluding price)
+cluster_data <- dataset_house_cleaned %>%
+  select(LivingArea, ConstructionYear, EnergyCertificate, NumberOfBathrooms) %>%
+  scale() # Scale the data for clustering
+
+# 2. Perform k-means clustering
+set.seed(123)
+kmeans_result <- kmeans(cluster_data, centers = 4) # Use 4 clusters (adjust as needed)
+
+# Add cluster assignments to the dataset
+dataset_house_cleaned <- dataset_house_cleaned %>%
+  mutate(Cluster = kmeans_result$cluster)
+
+# 3. Calculate average price and classify properties within each cluster
+dataset_house_cleaned <- dataset_house_cleaned %>%
+  group_by(Cluster) %>%
+  mutate(
+    Avg_Price_Cluster = mean(Price, na.rm = TRUE),
+    Price_Category_Cluster = case_when(
+      Price < 0.8 * Avg_Price_Cluster ~ "Undervalued",  # Less than 80% of the cluster average
+      Price > 1.2 * Avg_Price_Cluster ~ "Overvalued",  # Greater than 120% of the cluster average
+      TRUE ~ "Fairly Valued"  # Within 80%-120% of the cluster average
+    )
+  ) %>%
+  ungroup() # Ungroup after processing
+
+# 4. Summarize results: Count of categories within each cluster
+cluster_summary <- dataset_house_cleaned %>%
+  group_by(Cluster, Price_Category_Cluster) %>%
+  summarise(Count = n(), .groups = "drop")
+
+# Print the cluster summary
+print(cluster_summary)
+
+# 5. Visualizations
+# Proportion of categories within each cluster
+ggplot(cluster_summary, aes(x = as.factor(Cluster), y = Count, fill = Price_Category_Cluster)) +
+  geom_bar(stat = "identity", position = "fill") +
+  ggtitle("Proportion of Price Categories Within Each Cluster") +
+  xlab("Cluster") +
+  ylab("Proportion") +
+  theme_minimal() +
+  scale_fill_manual(values = c("blue", "red", "green"))
+
+# Boxplot of prices within each cluster
+ggplot(dataset_house_cleaned, aes(x = as.factor(Cluster), y = Price, color = Price_Category_Cluster)) +
+  geom_boxplot() +
+  ggtitle("Price Distribution Within Each Cluster") +
+  xlab("Cluster") +
+  ylab("Price") +
+  theme_minimal()
+
+```
+
+We can see that the second cluster is the most interesting, because it
+has a good distribution of Undervalued, Fairly and Overvalued; and also,
+as is shown in the second plot, it has more undervalued properties and
+with a high quantity of low-price house in comparative with the mean of
+this cluster.
+
+```{r}
+# Filter for undervalued houses in the second cluster
+undervalued_cluster_2 <- dataset_house_cleaned %>%
+  filter(Cluster == 2, Price_Category_Cluster == "Undervalued")
+
+# Summarize common characteristics
+summary_undervalued_cluster_2 <- undervalued_cluster_2 %>%
+  summarise(
+    Avg_LivingArea = mean(LivingArea, na.rm = TRUE),
+    Median_LivingArea = median(LivingArea, na.rm = TRUE),
+    Avg_ConstructionYear = mean(ConstructionYear, na.rm = TRUE),
+    Median_ConstructionYear = median(ConstructionYear, na.rm = TRUE),
+    Avg_EnergyCertificate = mean(EnergyCertificate, na.rm = TRUE),
+    Median_EnergyCertificate = median(EnergyCertificate, na.rm = TRUE),
+    Avg_NumberOfBathrooms = mean(NumberOfBathrooms, na.rm = TRUE),
+    Median_NumberOfBathrooms = median(NumberOfBathrooms, na.rm = TRUE)
+  )
+
+# Print the summary
+print(summary_undervalued_cluster_2)
+
+# Print a few undervalued samples from this cluster
+cat("\nSome undervalued properties in Cluster 2:\n")
+print(head(undervalued_cluster_2, 50))  # Adjust the number of rows to display as needed
+
+```
+
+## Third Subquestion
+
+**Which areas have the highest concentration of undervalued
+properties?**
+
+```{r}
+undervalued_apartments <- dataset_apartment_cleaned %>%
+  filter(Price_Category_Cluster == "Undervalued")
+
+# Count the total properties by district
+total_apartment_district <- dataset_apartment_cleaned %>%
+  group_by(District) %>%
+  summarise(Total = n(), .groups = "drop")
+
+# Count the undervalued properties by district
+undervalued_apartments_district <- undervalued_apartments %>%
+  group_by(District) %>%
+  summarise(Undervalued_Count = n(), .groups = "drop")
+
+# Combine the data and calculate the percentage
+apartment_district_analysis <- total_apartment_district %>%
+  left_join(undervalued_apartments_district, by = "District") %>%
+  mutate(
+    Undervalued_Count = ifelse(is.na(Undervalued_Count), 0, Undervalued_Count), # Replace NAs with 0
+    Percentage_Undervalued = (Undervalued_Count / Total) * 100
+  ) %>%
+  arrange(desc(Percentage_Undervalued))
+
+# Display the results
+print(apartment_district_analysis)
+
+# Visualization of percentages by district
+ggplot(apartment_district_analysis, aes(x = reorder(District, -Percentage_Undervalued), y = Percentage_Undervalued)) +
+  geom_bar(stat = "identity", fill = "darkorange") +
+  coord_flip() +
+  ggtitle("Percentage of Undervalued Apartments by District") +
+  xlab("District") +
+  ylab("Percentage of Undervalued Apartments") +
+  theme_minimal()
+```
+
+```{r}
+undervalued_lands <- dataset_land_cleaned %>%
+  filter(Price_Category_Cluster == "Undervalued")
+
+# Count the total properties by district
+total_land_district <- dataset_land_cleaned %>%
+  group_by(District) %>%
+  summarise(Total = n(), .groups = "drop")
+
+# Count the undervalued properties by district
+undervalued_land_district <- undervalued_lands %>%
+  group_by(District) %>%
+  summarise(Undervalued_Count = n(), .groups = "drop")
+
+# Combine the data and calculate the percentage
+land_district_analysis <- total_land_district %>%
+  left_join(undervalued_land_district, by = "District") %>%
+  mutate(
+    Undervalued_Count = ifelse(is.na(Undervalued_Count), 0, Undervalued_Count), # Replace NAs with 0
+    Percentage_Undervalued = (Undervalued_Count / Total) * 100
+  ) %>%
+  arrange(desc(Percentage_Undervalued))
+
+# Display the results
+print(land_district_analysis)
+
+# Visualization of percentages by district
+ggplot(land_district_analysis, aes(x = reorder(District, -Percentage_Undervalued), y = Percentage_Undervalued)) +
+  geom_bar(stat = "identity", fill = "#33FFF5") +
+  coord_flip() +
+  ggtitle("Percentage of Undervalued Lands by District") +
+  xlab("District") +
+  ylab("Percentage of Undervalued Lands") +
+  theme_minimal()
+```
+
+```{r}
+undervalued_houses <- dataset_house_cleaned %>%
+  filter(Price_Category_Cluster == "Undervalued")
+
+# Count the total properties by district
+total_house_district <- dataset_house_cleaned %>%
+  group_by(District) %>%
+  summarise(Total = n(), .groups = "drop")
+
+# Count the undervalued properties by district
+undervalued_house_district <- undervalued_houses %>%
+  group_by(District) %>%
+  summarise(Undervalued_Count = n(), .groups = "drop")
+
+# Combine the data and calculate the percentage
+house_district_analysis <- total_house_district %>%
+  left_join(undervalued_house_district, by = "District") %>%
+  mutate(
+    Undervalued_Count = ifelse(is.na(Undervalued_Count), 0, Undervalued_Count), # Replace NAs with 0
+    Percentage_Undervalued = (Undervalued_Count / Total) * 100
+  ) %>%
+  arrange(desc(Percentage_Undervalued))
+
+# Display the results
+print(house_district_analysis)
+
+# Visualization of percentages by district
+ggplot(house_district_analysis, aes(x = reorder(District, -Percentage_Undervalued), y = Percentage_Undervalued)) +
+  geom_bar(stat = "identity", fill = "pink") +
+  coord_flip() +
+  ggtitle("Percentage of Undervalued Houses by District") +
+  xlab("District") +
+  ylab("Percentage of Undervalued Houses") +
+  theme_minimal()
+```
+
+**- Apartments**
+
+Districts such as Bragança, Guarda, Ilha de Porto Santo, and Portalegre
+have 100% of their apartments classified as undervalued, while large
+districts like Lisboa have a much lower proportion (23.2%).
+
+**- Lands**
+
+The districts with the highest proportion of undervalued lands are Viseu
+(86.7%), Castelo Branco (84.2%), and Portalegre (81.8%). Districts such
+as Lisboa and Faro show relatively low percentages.
+
+**- Houses**
+
+In the analysis of houses, the districts with the highest concentration
+of undervalued properties are Viseu (100%), Guarda (90.3%), and Bragança
+(90.1%). Lisboa and Faro, once again, show low percentages (15.0% and
+14.0%, respectively).
+
+**General Conclusion on Undervalued Properties**
+
+**1. Districts with the highest concentration of undervalued
+properties**
+
+Districts with the highest proportions of undervalued properties are
+consistently small or medium-sized in terms of the total number of
+properties. For example:
+
+-   Bragança, Guarda, and Portalegre rank among the districts with the
+    highest percentage of undervalued properties across all three
+    property categories (apartments, lands, and houses).
+
+-   In particular, districts such as Bragança and Guarda show
+    percentages of undervalued properties close to 100% in multiple
+    categories, indicating that properties in these areas are
+    significantly below the estimated market values.
+
+**2. Districts with the lowest concentration of undervalued properties**
+
+Large and economically active districts, such as:
+
+-   Lisboa and Faro, consistently show a lower proportion of undervalued
+    properties across all categories.
+
+This suggests that properties in densely urbanized and tourist-heavy
+areas tend to align more closely with their estimated market values,
+likely due to higher competition and more accurate price assessments.
+
+**3. Geographical patterns of undervaluation**
+
+Rural or less populated districts:
+
+-   Districts like Portalegre, Vila Real, and Castelo Branco tend to
+    show high percentages of undervalued properties.
+
+-   This could be due to lower demand in these areas, leading to market
+    prices that do not fully reflect the properties’ potential value.
+
+Urban or tourist regions:
+
+-   Areas such as Lisboa, Setúbal, and Porto show lower percentages of
+    undervalued properties, indicating tighter real estate markets
+    aligned with economic dynamics.
+
+**4. General implications**
+
+Investment opportunities:
+
+-   Districts like Bragança, Guarda, and Portalegre offer significant
+    opportunities for investing in undervalued properties, as they show
+    high percentages across all categories.
+
+-   These areas may be ideal for buyers seeking properties with
+    potential for future appreciation.
+
+Consolidated markets:
+
+-   Districts like Lisboa and Faro reflect more competitive markets,
+    where properties are less likely to be undervalued. This may
+    indicate higher economic development and stability in real estate
+    prices.
